@@ -14,12 +14,12 @@ async function api(path,body,method='POST'){
   const data=await res.json();if(!res.ok)throw new Error(data.error||'No se pudo completar la solicitud.');return data;
 }
 async function transition(work){
-  if(switching)return;switching=true;
+  while(switching)await sleep(40);switching=true;
   stopSignal();
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const overlay=$('#transition');overlay.classList.add('active');
   await sleep(reduced?40:450);
-  try{await work();await sleep(reduced?100:1100);}finally{overlay.classList.remove('active');await sleep(reduced?0:350);switching=false;}
+  try{await work();await sleep(reduced?100:1100);}finally{overlay.classList.remove('active');switching=false;await sleep(reduced?0:350);}
 }
 function show(name){document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==name);currentView=name;updateMusic();window.scrollTo(0,0);}
 $('#begin').onclick=()=>transition(()=>{show('identify');$('#team').focus();});
