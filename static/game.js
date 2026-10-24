@@ -4,22 +4,11 @@ let csrf='', mission=null, currentView='welcome', switching=false, signalAbort=n
 const titles=['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Haz zoom','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final'];
 const kinds=['LECTURA Y BÚSQUEDA','DEDUCCIÓN NUMÉRICA','LÓGICA DE PYTHON','LÓGICA DIGITAL','OBSERVACIÓN DIGITAL','ATENCIÓN VISUAL','ESCUCHA Y RAZONAMIENTO','CRIPTOGRAFÍA Y AUDIO','CÓDIGO MORSE','INTEGRACIÓN DE PISTAS'];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let enabled=false, audio=new Audio(), audioKey='', volume=Number(localStorage.getItem('codigo-volume')??.25);
-audio.preload='none'; audio.volume=volume;
-$('#volume').value=String(volume);
-const tracks={welcome:'9_Y3lUuplnY',identify:'9_Y3lUuplnY',early:'Q7bZ5NIKMBQ',middle:'lzsLoeBM7hA',final:'3m6Vyz0jAbY',finish:'szHgyOXRf7c'};
 function updateMusic(){
-  let key=currentView;
-  if(currentView==='challenge') key=mission.stage<4?'early':mission.stage<8?'middle':'final';
-  if(currentView==='challenge' && [6,7,8].includes(mission.stage)){audio.pause();$('#sound-toggle').textContent=enabled?'♫ Música en pausa · escucha':'♫ Activar música';return;}
-  if(key!==audioKey){audioKey=key;audio.src='/static/audio/'+tracks[key]+'.mp3';audio.loop=key!=='finish';}
-  if(enabled) audio.play().catch(()=>{$('#sound-toggle').textContent='♫ Toca para reproducir';});
-  else audio.pause();
-  $('#sound-toggle').textContent=enabled?'♫ Silenciar música':'♫ Activar música';
-  $('#sound-toggle').setAttribute('aria-pressed',String(enabled));
+  let scene=currentView;
+  if(scene==='challenge') scene=mission.stage<4?'early':mission.stage<8?'middle':'final';
+  window.CodigoMusic.setScene(scene,{paused:currentView==='challenge'&&[6,7,8].includes(mission.stage)});
 }
-$('#sound-toggle').onclick=()=>{enabled=!enabled;updateMusic();};
-$('#volume').oninput=e=>{volume=Number(e.target.value);audio.volume=volume;localStorage.setItem('codigo-volume',String(volume));};
 async function api(path,body,method='POST'){
   const res=await fetch(path,{method,headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},...(body?{body:JSON.stringify(body)}:{})});
   const data=await res.json();if(!res.ok)throw new Error(data.error||'No se pudo completar la solicitud.');return data;
@@ -67,5 +56,5 @@ $('#answer-form').onsubmit=async e=>{e.preventDefault();const value=$('#answer')
 $('#monitor').onclick=()=>{$('#password-dialog').showModal();$('#monitor-password').focus();};$('#monitor-cancel').onclick=()=>{$('#password-dialog').close();$('#monitor-password').value='';};
 $('#monitor-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{const data=await api('/api/monitor/advance-photo',{password:$('#monitor-password').value});$('#monitor-password').value='';$('#password-dialog').close();mission=data.mission;await transition(renderMission);}catch(err){$('#monitor-error').textContent=err.message;}finally{btn.disabled=false;}};
 document.querySelectorAll('[data-transition]').forEach(link=>link.addEventListener('click',e=>{if(e.ctrlKey||e.metaKey||e.shiftKey)return;e.preventDefault();transition(()=>{location.href=link.href;});}));
-window.addEventListener('pagehide',()=>{stopSignal();audio.pause();});
+window.addEventListener('pagehide',stopSignal);
 (async()=>{try{const res=await fetch('/api/state');if(!res.ok)throw new Error('No se pudo recuperar la misión.');const data=await res.json();csrf=data.csrf;mission=data.mission;if(mission)renderMission();}catch(err){$('#team-error').textContent=err.message;} })();

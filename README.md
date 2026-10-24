@@ -33,7 +33,7 @@ Se mantiene el criterio del leaderboard: más aciertos primero y menor tiempo en
 
 Las fichas originales se extrajeron sin regenerar de imprimir_reto_2_3_6_7_8.pdf. Conservan los QR y las imágenes de diferencias. Los audios de NEXO y doble cifrado se consultan mediante sus QR originales. Las pistas impresas siguen siendo parte necesaria de la experiencia.
 
-Música: cinco pistas de la playlist Dark Ages de Plants vs. Zombies 2, descargadas directamente y convertidas a MP3 tras la declaración de autorización del organizador. Ver MUSIC_CREDITS.md. El usuario activa la reproducción; hay volumen y silencio. Se pausa durante NEXO, doble cifrado y Morse. No se redistribuyen como contenido de licencia abierta.
+Música: cinco pistas de la playlist Dark Ages de Plants vs. Zombies 2, descargadas directamente y convertidas a MP3 tras la declaración de autorización del organizador. Ver MUSIC_CREDITS.md. La música está habilitada por defecto; si el navegador impide el autoplay, comienza con la primera interacción. El parlante de la esquina superior abre el volumen y el botón de silencio; se conserva la preferencia explícita del usuario. Se pausa durante NEXO, doble cifrado y Morse. No se redistribuyen como contenido de licencia abierta.
 
 Branding: fuentes PNG originales conservadas. El archivo SVG del lockup contiene exactamente los tres originales embebidos; el PNG es una exportación transparente de 4202 × 320. No se inventan detalles adicionales en el logo blanco cuya fuente mide 783 × 96. compose-brand.cjs regenera ambos usando Sharp. La interfaz usa el SVG para conservar los originales. La tortuga y la base se muestran como archivos originales.
 
@@ -56,3 +56,5 @@ Servicio web gratuito: pip install -r requirements.txt; gunicorn app:app --bind 
 La numeración de etapas 1–10 de la guía de programadores y las fichas finales se usa como referencia visible; no se usa el orden histórico de la portada. La foto depende de la etapa 4 (circuito), no del conteo de diferencias. Doble cifrado valida 8; NEXO valida 5. A=2 y B=3 son constantes de cuatro bits; el equipo 1 puede obtener cero. Los bancos finales concuerdan con Morse 251, 372, 583, 916 y 635.
 
 Los registros de database.json anteriores se conservan en legacy-results.json y se importan una sola vez, manteniendo puntajes y tiempos originales. Borrarlos desde el panel no los vuelve a importar. Sus casillas se comparan con la clave histórica del juego anterior.
+
+La identidad medieval se contrastó con el video original https://youtu.be/FXVoeN7LFOU: pergamino oscuro, marcos dorados, MedievalSharp y botones de bronce. El leaderboard conserva casillas de aciertos/errores, podio, fila de respuesta real y refresco cada tres segundos. La referencia se puede cambiar entre la versión histórica y los cinco equipos actuales; requiere acceso de organización como el portal original.
