@@ -1,0 +1,71 @@
+'use strict';
+const $=s=>document.querySelector(s);
+let csrf='', mission=null, currentView='welcome', switching=false, signalAbort=null, timerInterval=null;
+const titles=['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Haz zoom','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final'];
+const kinds=['LECTURA Y BÚSQUEDA','DEDUCCIÓN NUMÉRICA','LÓGICA DE PYTHON','LÓGICA DIGITAL','OBSERVACIÓN DIGITAL','ATENCIÓN VISUAL','ESCUCHA Y RAZONAMIENTO','CRIPTOGRAFÍA Y AUDIO','CÓDIGO MORSE','INTEGRACIÓN DE PISTAS'];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let enabled=false, audio=new Audio(), audioKey='', volume=Number(localStorage.getItem('codigo-volume')??.25);
+audio.preload='none'; audio.volume=volume;
+$('#volume').value=String(volume);
+const tracks={welcome:'9_Y3lUuplnY',identify:'9_Y3lUuplnY',early:'Q7bZ5NIKMBQ',middle:'lzsLoeBM7hA',final:'3m6Vyz0jAbY',finish:'szHgyOXRf7c'};
+function updateMusic(){
+  let key=currentView;
+  if(currentView==='challenge') key=mission.stage<4?'early':mission.stage<8?'middle':'final';
+  if(currentView==='challenge' && [6,7,8].includes(mission.stage)){audio.pause();$('#sound-toggle').textContent=enabled?'♫ Música en pausa · escucha':'♫ Activar música';return;}
+  if(key!==audioKey){audioKey=key;audio.src='/static/audio/'+tracks[key]+'.mp3';audio.loop=key!=='finish';}
+  if(enabled) audio.play().catch(()=>{$('#sound-toggle').textContent='♫ Toca para reproducir';});
+  else audio.pause();
+  $('#sound-toggle').textContent=enabled?'♫ Silenciar música':'♫ Activar música';
+  $('#sound-toggle').setAttribute('aria-pressed',String(enabled));
+}
+$('#sound-toggle').onclick=()=>{enabled=!enabled;updateMusic();};
+$('#volume').oninput=e=>{volume=Number(e.target.value);audio.volume=volume;localStorage.setItem('codigo-volume',String(volume));};
+async function api(path,body,method='POST'){
+  const res=await fetch(path,{method,headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},...(body?{body:JSON.stringify(body)}:{})});
+  const data=await res.json();if(!res.ok)throw new Error(data.error||'No se pudo completar la solicitud.');return data;
+}
+async function transition(work){
+  if(switching)return;switching=true;
+  stopSignal();
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const overlay=$('#transition');overlay.classList.add('active');
+  await sleep(reduced?40:450);
+  try{await work();await sleep(reduced?100:1100);}finally{overlay.classList.remove('active');await sleep(reduced?0:350);switching=false;}
+}
+function show(name){document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==name);currentView=name;updateMusic();window.scrollTo(0,0);}
+$('#begin').onclick=()=>transition(()=>{show('identify');$('#team').focus();});
+$('#team-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;$('#team-error').textContent='';try{const data=await api('/api/start',{team:Number($('#team').value)});mission=data.mission;await transition(renderMission);}catch(err){$('#team-error').textContent=err.message;}finally{btn.disabled=false;}};
+function tick(){if(!mission||mission.finished)return;const seconds=Math.max(0,Math.floor(Date.now()/1000-mission.started));$('#timer').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
+function resource(html){$('#resource').innerHTML=html;}
+function stopSignal(){if(signalAbort)signalAbort.abort();signalAbort=null;$('#lamp')?.classList.remove('lit');}
+async function startSignal(){
+  stopSignal();const controller=new AbortController();signalAbort=controller;const btn=$('#signal-play');btn.textContent='Detener transmisión';
+  const pause=async ms=>{await sleep(ms);if(controller.signal.aborted)throw new Error('stopped');};
+  try{while(!controller.signal.aborted){for(const digit of mission.signal){for(let i=0;i<digit.length;i++){$('#lamp').classList.add('lit');await pause(digit[i]==='.'?400:1200);$('#lamp').classList.remove('lit');if(i<digit.length-1)await pause(400);}await pause(1500);}await pause(1500);}}catch{}finally{if(signalAbort===controller){signalAbort=null;$('#lamp')?.classList.remove('lit');if($('#signal-play'))$('#signal-play').textContent='Reproducir señales';}}
+}
+function renderMission(){
+  if(mission.finished){show('finish');$('#finish-note').textContent=mission.answers.some(a=>a.startsWith('PENDIENTE'))?'La fotografía provisional se registró sin acierto. El resto de las respuestas se validó con las reglas del evento.':'Los diez desafíos quedaron validados. El organizador puede consultar tu clasificación.';clearInterval(timerInterval);return;}
+  const n=mission.stage;show('challenge');$('#team-label').textContent='Equipo '+mission.team;$('#stage-label').textContent='RETO '+String(n+1).padStart(2,'0')+' / 10';$('#stage-kind').textContent=kinds[n];$('#progress-fill').style.width=(n/10*100)+'%';$('#challenge-title').textContent=mission.title;$('#question').textContent=mission.question;
+  const list=$('#stage-list');list.replaceChildren();titles.forEach((title,i)=>{const li=document.createElement('li');li.textContent=title;li.className=i===n?'current':i<n?'done':'';list.append(li);});
+  const input=$('#answer');input.value='';input.maxLength=[1,2,3,5,6,7].includes(n)?1:n===8?3:300;input.inputMode=[1,2,3,5,6,7,8].includes(n)?'numeric':'text';input.placeholder=n===8?'Tres cifras en orden':n===0?'Escribe el enunciado completo':n===9?'Cuatro palabras':n===4?'Código del aula':'Tu respuesta';$('#feedback').textContent='';$('#monitor').hidden=true;$('#answer-form').hidden=false;
+  if(n===0)resource('<p class="resource-copy">El primer reto puede parecer confuso, pero si lees bien tu ficha de normas lo entenderás. Examina las siete instrucciones impresas de tu equipo y conserva el orden de las palabras que recuperes.</p><div class="notice">Usa la ficha física asignada a tu equipo. Acude únicamente al punto habilitado por el personal.</div>');
+  if(n===1)resource('<div class="clue-list">'+[['682','Una cifra es correcta y está en su lugar.'],['614','Una cifra es correcta, pero está en otro lugar.'],['206','Dos cifras son correctas, ambas mal ubicadas.'],['738','Ninguna cifra forma parte de la clave.'],['780','Una cifra es correcta, pero está mal ubicada.']].map(([a,b])=>'<div class="clue"><b>'+a+'</b><span>'+b+'</span></div>').join('')+'</div><p class="resource-copy">La clave puede comenzar con cero. Conserva solo su cifra central para el mensaje final.</p>');
+  if(n===2){resource('<p class="resource-copy">Reconstruye el programa con las nueve tarjetas A–I de tu sobre. La sangría de Python importa: determina qué instrucciones pertenecen a cada bloque.</p><pre>datos = [8, 3, 6, 1, 9, 4, 2, 7]\nclave = 0\n# reconstruir las instrucciones recuperadas\nprint(clave)</pre><div class="notice">Usa todas las tarjetas. No hay fragmentos de distracción.</div>');}
+  if(n===3)resource('<p class="resource-copy">Resuelve el circuito en <strong>cuatro bits</strong>. A = 2 y B = 3 son constantes; C = '+mission.team+' es el número de tu equipo.</p><pre>G1 = A OR B\nG2 = A AND B\nG3 = NOT G2 (solo cuatro bits)\nG4 = G1 AND G3\nSALIDA = G4 XOR C</pre><p class="resource-copy">Convierte la salida a decimal. El cero también es un resultado válido.</p>');
+  if(n===4){resource('<div class="zoom-toolbar"><button class="secondary" type="button" id="zoom-out" aria-label="Reducir imagen">−</button><span id="zoom-label">100%</span><button class="secondary" type="button" id="zoom-in" aria-label="Ampliar imagen">+</button><span>Desliza para explorar</span></div><div class="photo-viewport"><img id="photo" alt="Fotografía asignada al equipo"></div><p class="pending-tag" id="photo-status"></p>');const img=$('#photo');img.src=mission.photo.url;let zoom=1;const applyZoom=()=>{img.style.width=(zoom*100)+'%';$('#zoom-label').textContent=Math.round(zoom*100)+'%';};$('#zoom-in').onclick=()=>{zoom=Math.min(4,zoom+.25);applyZoom();};$('#zoom-out').onclick=()=>{zoom=Math.max(1,zoom-.25);applyZoom();};applyZoom();if(mission.photo.pending){$('#photo-status').textContent='FOTO '+mission.photo.number+' · PROVISIONAL. El aula y su código están pendientes.';$('#answer-form').hidden=true;$('#monitor').hidden=false;}else $('#photo-status').textContent='FOTO '+mission.photo.number+' · Busca la puerta con la marca distintiva.';}
+  if(n===5)resource('<p class="resource-copy">Compara las dos imágenes originales de fábrica automatizada que vienen en el sobre. Recorre la escena por zonas y cuenta cada objeto o detalle modificado una sola vez.</p><div class="notice">Usa las imágenes impresas originales. Una recreación podría cambiar el número de diferencias.</div>');
+  if(n===6)resource('<p class="resource-copy">Escanea el QR del sobre y escucha la transmisión de <strong>Central NEXO</strong>. Aplica el protocolo impreso: descarta canales comprometidos, conserva los valores corregidos y recupera el orden.</p><div class="notice">La música de ambiente se pausa durante esta prueba para que puedas escuchar con claridad.</div>');
+  if(n===7)resource('<p class="resource-copy">Escucha la transmisión en inglés del QR de tu sobre. Identifica los nueve caracteres con el alfabeto fonético y revierte las dos transformaciones usando las pistas físicas.</p><p class="resource-copy">Convierte la palabra recuperada a posiciones A=1 hasta Z=26, sin Ñ. Suma y entrega <strong>solo el último dígito</strong>.</p><div class="notice">La música de ambiente permanece en pausa durante esta prueba.</div>');
+  if(n===8){resource('<p class="resource-copy">Cada cifra tiene cinco pulsos: corto = 0,4 s; largo = 1,2 s. Hay una pausa entre cifras y una pausa mayor entre repeticiones. Anota las tres cifras en orden.</p><div class="signal-stage"><div id="lamp" class="signal-lamp" role="img" aria-label="Foco de señales Morse"></div></div><button class="secondary" id="signal-play" type="button">Reproducir señales</button><p class="input-hint">Consulta la referencia Morse impresa. Puedes detener y reiniciar la transmisión.</p>');$('#signal-play').onclick=()=>{if(signalAbort){stopSignal();$('#signal-play').textContent='Reproducir señales';}else startSignal();};}
+  if(n===9){resource('<p class="resource-copy">Recupera las tres cifras de las señales luminosas. Añade al final la cifra central de la contraseña imposible. Consulta las cuatro posiciones en este banco y conserva el orden.</p><div class="word-bank" id="words"></div>');mission.words.forEach((word,i)=>{const cell=document.createElement('div');const b=document.createElement('b');b.textContent=String(i+1).padStart(2,'0');cell.append(b,document.createTextNode(word));$('#words').append(cell);});}
+  const sheets={1:3,2:2,5:4,6:5,7:1};
+  if(sheets[n]){const detail=document.createElement('details');detail.className='original-resource';const summary=document.createElement('summary');summary.textContent='Ver ficha original del evento';const box=document.createElement('div');box.className='zoom-original';const image=document.createElement('img');image.src='/static/challenges/original-sheet-'+sheets[n]+'-1.png';image.alt='Ficha original: '+mission.title;box.append(image);detail.append(summary,box);$('#resource').append(detail);}
+  clearInterval(timerInterval);tick();timerInterval=setInterval(tick,500);if(!$('#answer-form').hidden)input.focus({preventScroll:true});
+}
+function confirmAnswer(value){return new Promise(resolve=>{const dialog=$('#confirm-dialog');$('#confirm-text').textContent='¿Confirmas que «'+value+'» es tu respuesta?';dialog.returnValue='cancel';dialog.addEventListener('close',()=>resolve(dialog.returnValue==='confirm'),{once:true});dialog.showModal();});}
+$('#answer-form').onsubmit=async e=>{e.preventDefault();const value=$('#answer').value.trim();if(!value||switching)return;const btn=$('#answer-submit');btn.disabled=true;try{if(!await confirmAnswer(value))return;const data=await api('/api/answer',{answer:value,stage:mission.stage});$('#feedback').textContent=data.message;if(data.correct){if(mission.stage===4){resource('<div class="notice" id="destination"></div>');$('#destination').textContent=data.message;await sleep(2200);}mission=data.mission;await transition(renderMission);}}catch(err){$('#feedback').textContent=err.message;}finally{btn.disabled=false;}};
+$('#monitor').onclick=()=>{$('#password-dialog').showModal();$('#monitor-password').focus();};$('#monitor-cancel').onclick=()=>{$('#password-dialog').close();$('#monitor-password').value='';};
+$('#monitor-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{const data=await api('/api/monitor/advance-photo',{password:$('#monitor-password').value});$('#monitor-password').value='';$('#password-dialog').close();mission=data.mission;await transition(renderMission);}catch(err){$('#monitor-error').textContent=err.message;}finally{btn.disabled=false;}};
+document.querySelectorAll('[data-transition]').forEach(link=>link.addEventListener('click',e=>{if(e.ctrlKey||e.metaKey||e.shiftKey)return;e.preventDefault();transition(()=>{location.href=link.href;});}));
+window.addEventListener('pagehide',()=>{stopSignal();audio.pause();});
+(async()=>{try{const res=await fetch('/api/state');if(!res.ok)throw new Error('No se pudo recuperar la misión.');const data=await res.json();csrf=data.csrf;mission=data.mission;if(mission)renderMission();}catch(err){$('#team-error').textContent=err.message;} })();

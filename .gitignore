@@ -1,0 +1,16 @@
+instance/
+__pycache__/
+.env
+.venv/
+event_config.json
+*.sqlite3
+*.sqlite3-*
+.render-connection
+write-check.txt
+*.m4a
+static/img/
+static/style.css
+static/audio/morse.wav
+create_morse.py
+templates/leaderboard.html
+.deploy-env.json
