@@ -17,7 +17,7 @@ Abrir http://localhost:5001. SECRET_KEY debe ser aleatoria y estable. Sin DATABA
 
 ## Dinámica vigente
 
-El participante introduce el nombre del club o gremio (2–60 caracteres) y el equipo asignado (1–5). Debe escribir y confirmar una respuesta para cada uno de los diez retos. Toda respuesta no vacía se guarda y permite avanzar, aunque sea incorrecta. No se exige acertar para pasar. Los aciertos se calculan en el servidor al finalizar. No se publica la solución durante el recorrido.
+El participante introduce el nombre del club o gremio (2–60 caracteres) y el equipo asignado (1–5). Debe escribir y confirmar una respuesta para cada uno de los diez retos. El primer reto debe acertarse para avanzar, ignorando mayúsculas, tildes y puntuación y normalizando espacios. El mensaje final también debe acertarse para terminar, como indica la guía de programadores. Los retos numéricos permiten continuar aunque el dígito sea incorrecto; solo aceptan un dígito, excepto Morse, que exige tres cifras. El puntaje se calcula en el servidor al finalizar. No se publica la solución durante el recorrido.
 
 El orden es lectura, contraseña, Python, circuito, fotografía, diferencias, NEXO, doble cifrado, Morse y mensaje final. A=2 y B=3 son constantes de cuatro bits. Circuitos por equipo: 0, 3, 2, 5, 4. Morse: 251, 372, 583, 916, 635. NEXO: 5. Doble cifrado: 8. Las frases admiten cambios de tildes, mayúsculas y puntuación; las respuestas numéricas conservan ceros iniciales y orden.
 
@@ -27,7 +27,7 @@ Volver al inicio conserva la misión y el borrador local de la respuesta actual.
 
 Copiar event_config.example.json a event_config.json y completar url, answer y destination para cada foto. Equipos 1–5 reciben fotos 0, 3, 2, 5 y 4. Guardar los códigos como cadenas para conservar ceros iniciales. No guardar claves en static.
 
-Sin foto real se muestra una ilustración genérica y se pide escribir «pendiente». Esa respuesta también permite continuar y queda visible en la comparación; sin una clave real la etapa no suma acierto y se marca pendiente. No se inventan aulas.
+Sin foto real se muestra una ilustración genérica y se pide escribir «pendiente». Esa respuesta permite continuar y queda visible en la comparación; sin una clave real la etapa no suma acierto y se marca pendiente. No se inventan aulas.
 
 ## Un solo leaderboard
 
@@ -41,12 +41,12 @@ ADMIN_PASSWORD_HASH o ADMIN_PASSWORD configuran el acceso. Borrar cada registro 
 
 ## Música y recursos visuales
 
-Cinco pistas MP3 de Dark Ages / Plants vs. Zombies 2 se descargaron y convirtieron localmente tras la declaración de autorización del organizador; ver MUSIC_CREDITS.md. Música habilitada por defecto; ante bloqueo del autoplay comienza con la primera interacción. El parlante superior despliega el volumen y el silencio. Se pausa durante NEXO, doble cifrado y Morse.
+Cinco pistas MP3 de Dark Ages / Plants vs. Zombies 2 se descargaron y convirtieron localmente tras la declaración de autorización del organizador; ver MUSIC_CREDITS.md. Música habilitada por defecto; ante bloqueo del autoplay comienza con la primera interacción. La pista de portada se reproduce una sola vez por carga de página y no vuelve a empezar con clics posteriores; las otras escenas conservan su reproducción anterior. El parlante superior despliega el volumen y el silencio. Se pausa durante NEXO, doble cifrado y Morse.
 
 Tortuga y piedra mantienen su proporción dentro de un mismo contenedor, sin animación vertical independiente. Lockup del evento: SVG con los tres originales embebidos y exportación PNG transparente. Google for Developers usa el recurso oficial para fondo oscuro, exportado a PNG con alfa real, sin fondo blanco ni redibujado:
 https://www.gstatic.com/devrel-devsite/prod/v5a0f9ff8b593048661361a49e11ab98a8b1ac025e19e60e6189f2b56796f8a43/developers/images/lockup-dark-theme-new.svg
 
-Se retiró el emblema adicional de IEEE Eta Kappa Nu de la fila de aliados. Las fichas originales se extrajeron sin regenerar del PDF del evento y conservan los QR y las diferencias originales. Esas pistas físicas siguen siendo parte de la experiencia.
+Se retiró el emblema adicional de IEEE Eta Kappa Nu de la fila de aliados. Las fichas originales se conservan en los archivos del proyecto. Los materiales físicos, sus QR y las diferencias siguen siendo parte de la experiencia. La pantalla de cada reto usa el enunciado y la confirmación de la guía de programadores, sin explicaciones añadidas.
 
 ## Validación
 
@@ -57,10 +57,12 @@ node --check static/admin.js
 node --check static/sound.js
 ```
 
-Pruebas con bases SQLite aisladas: los cinco equipos, respuestas erróneas que avanzan, bloqueo de respuestas vacías y saltos, puntaje real, nombre, clave específica por equipo, instantáneas de referencia, migración de datos antiguos, contraseña en cada entrada, CSRF y nueva contraseña al borrar. La revisión de anchos de celular se realiza con iframes de 320–430 px en un servidor local de pruebas, sin modificar datos de Render.
+Pruebas con bases SQLite aisladas: los cinco equipos, bloqueo de primer reto y mensaje final incorrectos, variantes de mayúsculas/tildes/puntuación, números incorrectos que avanzan, bloqueo de respuestas vacías y saltos, puntaje real, nombre, clave específica por equipo, instantáneas de referencia, migración de datos antiguos, contraseña en cada entrada, CSRF y nueva contraseña al borrar. La revisión de anchos de celular se realiza con iframes de 320–430 px en un servidor local de pruebas, sin modificar datos de Render.
 
 ## Render
 
 Servicio gratuito con gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4. /healthz consulta SQL. PostgreSQL gratuito vence el 23 de noviembre de 2026; exportar los resultados antes. No se cambia automáticamente a un plan pagado.
 
 Una misión en curso permite editar el nombre del gremio desde el inicio sin reiniciar el reloj, borrar respuestas ni cambiar el número asignado.
+
+Los inputs de respuesta convierten automáticamente el texto a mayúsculas sin tildes y lo centran. Los numéricos filtran letras, signos y exceso de cifras. Si una misión previa había avanzado con el primer reto incorrecto, se pide corregirlo y luego se recuperan las respuestas posteriores sin borrarlas. El layout de PC se compacta desde 900 px sin reducir globalmente el zoom ni cambiar la escala móvil. Se eliminó el banner desplegable Clubs Royale; los tres logos quedan al pie del contenido.

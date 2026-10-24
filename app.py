@@ -17,11 +17,34 @@ CIRCUITS = ['0','3','2','5','4']
 CODES = ['251','372','583','916','635']
 BANKS = [['ES','LA','CAFE','EQUIPO','INGENIERÍA','CODIGO','SECRETO','NEXO','TIEMPO'],['CAFE','ES','LA','EQUIPO','CODIGO','SECRETO','INGENIERÍA','NEXO','TIEMPO'],['CAFE','CODIGO','ES','EQUIPO','LA','SECRETO','NEXO','INGENIERÍA','TIEMPO'],['INGENIERÍA','CAFE','CODIGO','EQUIPO','SECRETO','ES','NEXO','TIEMPO','LA'],['CAFE','CODIGO','INGENIERÍA','EQUIPO','ES','LA','SECRETO','NEXO','TIEMPO']]
 TITLES = ['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Haz zoom','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final']
-QUESTIONS = ['¿Cuál es tu enunciado correcto?','¿Cuál es el dígito central de la contraseña de tres cifras?','¿Qué número de un solo dígito se obtiene al ejecutar correctamente el programa?','¿Cuál es el resultado decimal de la salida del circuito lógico?','¿Cuál es el código de aula de la puerta marcada?','¿Cuántas diferencias hay entre la Imagen A y la Imagen B?','¿Cuál es la clave recuperada de la transmisión NEXO?','¿Cuál es el último dígito de la suma obtenida después de descifrar el mensaje?','¿Qué código de tres cifras se obtiene al interpretar las señales luminosas?','¿Cuál es el mensaje final formado con las palabras de las posiciones recuperadas?']
+QUESTIONS = [
+    'El primer reto puede parecer confuso, pero si lees bien tu ficha de normas lo entenderás.\n¿Cuál es tu enunciado correcto?',
+    '¿Cuál es el dígito central de la contraseña de tres cifras?',
+    '¿Qué número de un solo dígito se obtiene al ejecutar correctamente el programa?',
+    '¿Cuál es el resultado decimal de la salida del circuito lógico?',
+    'La foto esconde más de lo que se observa a simple vista.\nIngresa el código especial',
+    '¿Cuántas diferencias hay entre la Imagen A y la Imagen B?',
+    '¿Cuál es la clave recuperada de la transmisión NEXO?',
+    '¿Cuál es el último dígito de la suma obtenida después de descifrar el mensaje?',
+    '¿Qué código de tres cifras se obtiene al interpretar las señales luminosas?',
+    '¿Cuál es el mensaje final formado al combinar las palabras correspondientes a los números obtenidos en los retos anteriores?']
+CONFIRMATIONS = [
+    '¿Confirmas que «{respuesta}» es tu enunciado correcto?',
+    '¿Confirmas que «{respuesta}» es el dígito central de la contraseña?',
+    '¿Confirmas que el programa reconstruido produce «{respuesta}»?',
+    '¿Confirmas que la salida del circuito es «{respuesta}»?',
+    '¿Confirmas que el código especial es «{respuesta}»?',
+    '¿Confirmas que encontraste «{respuesta}» diferencias?',
+    '¿Confirmas que la clave recuperada es «{respuesta}»?',
+    '¿Confirmas que el último dígito es «{respuesta}»?',
+    '¿Confirmas que el código descifrado es «{respuesta}»?',
+    '¿Confirmas que el código descifrado es «{respuesta}»?']
+NUMERIC_LENGTHS = {1:1, 2:1, 3:1, 5:1, 6:1, 7:1, 8:3}
+
 
 def normalize(value):
     text=unicodedata.normalize('NFD',value.strip().casefold())
-    return ' '.join(''.join(c for c in text if unicodedata.category(c)!='Mn' and (c.isalnum() or c.isspace())).split())
+    return ' '.join(''.join(c if c.isalnum() or c.isspace() else ' ' for c in text if unicodedata.category(c)!='Mn').split())
 
 @contextmanager
 def connection():
@@ -121,11 +144,15 @@ def health():
         sql(db,'SELECT 1')
     return jsonify(status='ok',storage='postgresql' if DATABASE_URL else 'sqlite')
 
+def needs_first_correction(row):
+    answers=json.loads(row['answers'])
+    return not row['finished'] and row['stage']>0 and bool(answers) and not answer_matches(answers[0],LOCATIONS[row['team']-1],0)
+
 def public(row):
-    team,stage=row['team'],row['stage']
+    team,stage=row['team'],0 if needs_first_correction(row) else row['stage']
     value=dict(team=team,club_name=row['club_name'] or f'Equipo {team}',stage=stage,started=row['started'],finished=bool(row['finished']),answers=json.loads(row['answers']))
     if stage<10:
-        value.update(title=TITLES[stage],question=QUESTIONS[stage])
+        value.update(title=f'Reto {stage+1} — {TITLES[stage]}',question=QUESTIONS[stage],confirmation=CONFIRMATIONS[stage])
     if stage==4:
         value['photo']=dict(url=photo(team).get('url') or '/static/event/aula-provisional.svg',number=CIRCUITS[team-1],pending=not all(photo(team).get(k) for k in ('url','answer','destination')))
     if stage==8:
@@ -193,11 +220,29 @@ def answer():
         row=sql(db,'SELECT * FROM missions WHERE id=?'+(' FOR UPDATE' if DATABASE_URL else ''),(session.get('mission',''),)).fetchone()
         if not row or row['finished']:
             return jsonify(error='No hay una misión activa.'),409
+        if needs_first_correction(row):
+            if type(data.get('stage')) is not int or data['stage']!=0:
+                return jsonify(error='Recarga la página para continuar.'),409
+            correct=answer_matches(value,LOCATIONS[row['team']-1],0)
+            attempts=json.loads(row['attempts'])+[dict(stage=0,correct=correct)]
+            sql(db,'UPDATE missions SET attempts=? WHERE id=?',(json.dumps(attempts),row['id']))
+            if not correct:
+                return jsonify(accepted=False,message='Respuesta incorrecta.'),200
+            answers=json.loads(row['answers']);answers[0]=value.strip()
+            sql(db,'UPDATE missions SET answers=? WHERE id=?',(json.dumps(answers),row['id']))
+            updated=sql(db,'SELECT * FROM missions WHERE id=?',(row['id'],)).fetchone()
+            return jsonify(accepted=True,message='',mission=public(updated))
         stage,team=row['stage'],row['team']
         if type(data.get('stage')) is not int or data['stage']!=stage:
             return jsonify(error='La etapa cambió. Recarga para recuperar tu avance.'),409
+        if stage in NUMERIC_LENGTHS and (not value.isascii() or not value.isdigit() or len(value)!=NUMERIC_LENGTHS[stage]):
+            return jsonify(error='Ingresa un dígito.' if NUMERIC_LENGTHS[stage]==1 else 'Ingresa tres dígitos.'),400
         targets=expected(team)
         correct=answer_matches(value,targets[stage],stage)
+        if stage in (0,9) and not correct:
+            attempts=json.loads(row['attempts'])+[dict(stage=stage,correct=False)]
+            sql(db,'UPDATE missions SET attempts=? WHERE id=?',(json.dumps(attempts),row['id']))
+            return jsonify(accepted=False,message='Respuesta incorrecta.'),200
         attempts=json.loads(row['attempts'])+[dict(stage=stage,correct=correct)]
         answers=json.loads(row['answers'])+[value.strip()]
         finished=stage==9
@@ -206,10 +251,9 @@ def answer():
             score=sum(answer_matches(a,targets[i],i) is True for i,a in enumerate(answers))
             sql(db,'INSERT INTO submissions (id,club,score,time_ms,answers,team,expected_answers) VALUES (?,?,?,?,?,?,?)',(row['id'],row['club_name'] or f'Equipo {team}',score,int((time.time()-row['started'])*1000),json.dumps(answers),team,json.dumps(targets)))
         updated=sql(db,'SELECT * FROM missions WHERE id=?',(row['id'],)).fetchone()
-    message='Respuesta guardada. Los aciertos se contabilizan al finalizar.'
-    # El movimiento físico no depende de acertar: todos los equipos pueden continuar.
-    if stage==4 and photo(team).get('destination'):
-        message='Respuesta guardada. Dirígete a '+photo(team)['destination']
+    message=''
+    if stage==4 and correct and photo(team).get('destination'):
+        message='Dirígete a '+photo(team)['destination']
     return jsonify(accepted=True,message=message,mission=public(updated))
 
 @app.post('/api/admin/login')

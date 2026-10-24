@@ -57,7 +57,9 @@ class GameTest(unittest.TestCase):
             self.assertEqual(self.client.get('/api/state').json['mission']['stage'],0)
         self.assertEqual(self.post('/api/answer',{'stage':8,'answer':'251'}).status_code,409)
         self.assertEqual(self.post('/api/answer',{'stage':True,'answer':'1'}).status_code,409)
-        self.assertEqual(self.post('/api/answer',{'stage':0,'answer':'incorrecta'}).json['mission']['stage'],1)
+        self.assertFalse(self.post('/api/answer',{'stage':0,'answer':'incorrecta'}).json['accepted'])
+        self.assertEqual(self.client.get('/api/state').json['mission']['stage'],0)
+        self.post('/api/answer',{'stage':0,'answer':game.LOCATIONS[0]})
         self.assertEqual(self.post('/api/answer',{'stage':0,'answer':'otro clic'}).status_code,409)
     def test_names_and_assigned_teams(self):
         for team in [None,True,0,6,'1']:
@@ -69,13 +71,13 @@ class GameTest(unittest.TestCase):
         self.assertEqual(self.client.get('/api/state').json['mission']['club_name'],'Club Ñandú')
     def test_change_name_preserves_progress_and_team(self):
         self.start(5,'Nombre inicial')
-        self.post('/api/answer',{'stage':0,'answer':'una respuesta incorrecta'})
+        self.post('/api/answer',{'stage':0,'answer':game.LOCATIONS[4]})
         renamed=self.post('/api/mission/name',{'club_name':'Club con nombre nuevo'}).json['mission']
         self.assertEqual(renamed['club_name'],'Club con nombre nuevo')
         self.assertEqual(renamed['stage'],1)
         self.assertEqual(renamed['team'],5)
-        self.assertEqual(renamed['answers'],['una respuesta incorrecta'])
-        for stage in range(1,10):self.post('/api/answer',{'stage':stage,'answer':'incorrecta'})
+        self.assertEqual(renamed['answers'],[game.LOCATIONS[4]])
+        for stage in range(1,10):self.post('/api/answer',{'stage':stage,'answer':'LA INGENIERIA ES EQUIPO' if stage==9 else 'pendiente' if stage==4 else '000' if stage==8 else '9'})
         self.assertEqual(self.post('/api/mission/name',{'club_name':'otro nombre'}).status_code,409)
     def test_configured_photo_and_expected_snapshot(self):
         original=game.photo
@@ -92,10 +94,10 @@ class GameTest(unittest.TestCase):
         finally:game.photo=original
     def test_password_each_entry_and_deletion(self):
         self.start(1,'Registro descartable de pruebas')
-        self.finish(['incorrecta']*10)
+        self.finish([game.LOCATIONS[0],'9','9','9','pendiente','9','9','9','000','LA INGENIERIA ES EQUIPO'])
         self.assertEqual(self.login().status_code,200)
         entry=next(r for r in self.client.get('/api/results').json['leaderboard'] if r['club']=='Registro descartable de pruebas')
-        self.assertEqual(entry['score'],0)
+        self.assertEqual(entry['score'],2)
         self.assertEqual(self.post('/api/results/'+entry['id'],{},'DELETE').status_code,403)
         self.assertEqual(self.post('/api/results/'+entry['id'],{'password':'incorrecta'},'DELETE').status_code,403)
         page=self.client.get('/leaderboard')
@@ -125,6 +127,40 @@ class GameTest(unittest.TestCase):
             self.assertEqual(row['team'],4)
             self.assertEqual(row['comparison'][3]['expected'],'5')
         finally:game.DB_PATH=original_path
+    def test_first_gate_accepts_case_accents_and_punctuation(self):
+        for team in range(1,6):
+            with self.subTest(team=team):
+                self.setUp();self.start(team,f'Primer reto {team}')
+                result=self.post('/api/answer',{'stage':0,'answer':'respuesta incorrecta'})
+                self.assertFalse(result.json['accepted'])
+                self.assertEqual(self.client.get('/api/state').json['mission']['stage'],0)
+                variant='... '+', '.join(game.LOCATIONS[team-1].upper().split())+'!!!'
+                result=self.post('/api/answer',{'stage':0,'answer':variant})
+                self.assertTrue(result.json['accepted'])
+                self.assertEqual(result.json['mission']['stage'],1)
+                for value in ['12','e','-1','２','']:
+                    self.assertEqual(self.post('/api/answer',{'stage':1,'answer':value}).status_code,400)
+                self.assertTrue(self.post('/api/answer',{'stage':1,'answer':'9'}).json['accepted'])
+    def test_final_gate_requires_correct_message(self):
+        self.start(1,'Mensaje final con validacion')
+        answers=game.expected(1)
+        for stage,target in enumerate(answers[:9]):
+            response=self.post('/api/answer',{'stage':stage,'answer':target or 'PENDIENTE'})
+            self.assertTrue(response.json['accepted'])
+        wrong=self.post('/api/answer',{'stage':9,'answer':'UN MENSAJE INCORRECTO'})
+        self.assertFalse(wrong.json['accepted'])
+        self.assertEqual(self.client.get('/api/state').json['mission']['stage'],9)
+        correct=self.post('/api/answer',{'stage':9,'answer':'la ingenieria es EQUIPO!'})
+        self.assertTrue(correct.json['mission']['finished'])
+    def test_previous_progress_survives_first_answer_correction(self):
+        self.start(2,'Mision ya empezada')
+        with self.client.session_transaction() as sess:mission_id=sess['mission']
+        with game.connection() as db:
+            game.sql(db,'UPDATE missions SET stage=2,answers=? WHERE id=?',(json.dumps(['respuesta vieja incorrecta','9']),mission_id))
+        self.assertEqual(self.client.get('/api/state').json['mission']['stage'],0)
+        result=self.post('/api/answer',{'stage':0,'answer':game.LOCATIONS[1]})
+        self.assertEqual(result.json['mission']['stage'],2)
+        self.assertEqual(result.json['mission']['answers'],[game.LOCATIONS[1],'9'])
     def test_word_banks_and_circuits(self):
         for team in range(1,6):
             self.assertEqual(str((((2|3)&(~(2&3)&15))^team)),game.CIRCUITS[team-1])
