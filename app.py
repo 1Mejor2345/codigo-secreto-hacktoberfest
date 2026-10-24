@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / '.env')
 from contextlib import contextmanager
-from flask import Flask, jsonify, render_template, request, session
+from flask import Flask, jsonify, render_template, request, session, make_response, redirect, url_for
 from werkzeug.security import check_password_hash
 ROOT = Path(__file__).resolve().parent
 app = Flask(__name__)
@@ -45,11 +45,23 @@ def connection():
 def sql(db,query,args=()):
     return db.execute(query.replace('?', '%s') if DATABASE_URL else query,args)
 
+def add_columns(db, table, columns):
+    existing = set()
+    if not DATABASE_URL:
+        existing = {row['name'] for row in sql(db, 'PRAGMA table_info('+table+')').fetchall()}
+    for name, definition in columns.items():
+        if DATABASE_URL:
+            sql(db, f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {definition}')
+        elif name not in existing:
+            sql(db, f'ALTER TABLE {table} ADD COLUMN {name} {definition}')
+
 def init_db():
     with connection() as db:
         sql(db,"CREATE TABLE IF NOT EXISTS missions (id TEXT PRIMARY KEY, team INTEGER NOT NULL, started DOUBLE PRECISION NOT NULL, stage INTEGER NOT NULL DEFAULT 0, answers TEXT NOT NULL DEFAULT '[]', attempts TEXT NOT NULL DEFAULT '[]', finished INTEGER NOT NULL DEFAULT 0)")
         sql(db,"CREATE TABLE IF NOT EXISTS submissions (id TEXT PRIMARY KEY, club TEXT NOT NULL, score INTEGER NOT NULL, time_ms BIGINT NOT NULL, answers TEXT NOT NULL)")
         sql(db,"CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        add_columns(db, 'missions', {'club_name': "TEXT NOT NULL DEFAULT ''"})
+        add_columns(db, 'submissions', {'team': 'INTEGER', 'expected_answers': "TEXT NOT NULL DEFAULT '[]'"})
         legacy=ROOT/'legacy-results.json'
         if legacy.exists() and not sql(db,'SELECT value FROM app_metadata WHERE key=?',('legacy-imported',)).fetchone():
             for i,entry in enumerate(json.loads(legacy.read_text(encoding='utf-8')).get('submissions',[])):
@@ -82,12 +94,26 @@ def protect():
 
 @app.get('/')
 def index():
-    return render_template('index.html')
+    session.pop('admin_until', None)
+    response = make_response(render_template('index.html'))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 @app.get('/admin')
+def admin_alias():
+    return redirect(url_for('admin'))
+
 @app.get('/leaderboard')
 def admin():
-    return render_template('admin.html')
+    session.pop('admin_until', None)
+    response = make_response(render_template('admin.html'))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+@app.post('/api/admin/logout')
+def logout():
+    session.pop('admin_until', None)
+    return jsonify(success=True)
 
 @app.get('/healthz')
 def health():
@@ -97,7 +123,7 @@ def health():
 
 def public(row):
     team,stage=row['team'],row['stage']
-    value=dict(team=team,stage=stage,started=row['started'],finished=bool(row['finished']),answers=json.loads(row['answers']))
+    value=dict(team=team,club_name=row['club_name'] or f'Equipo {team}',stage=stage,started=row['started'],finished=bool(row['finished']),answers=json.loads(row['answers']))
     if stage<10:
         value.update(title=TITLES[stage],question=QUESTIONS[stage])
     if stage==4:
@@ -121,22 +147,33 @@ def start():
     team=data.get('team')
     if type(team)!=int or team not in range(1,6):
         return jsonify(error='Selecciona un equipo del 1 al 5.'),400
+    club_name=data.get('club_name')
+    if not isinstance(club_name,str) or not 2<=len(club_name.strip())<=60 or any(ord(c)<32 for c in club_name):
+        return jsonify(error='Escribe el nombre de tu club o gremio (entre 2 y 60 caracteres).'),400
+    club_name=club_name.strip()
     with connection() as db:
         existing=sql(db,'SELECT * FROM missions WHERE id=?',(session.get('mission',''),)).fetchone()
         if existing and not existing['finished']:
             return jsonify(mission=public(existing))
         mission=secrets.token_hex(24)
-        sql(db,'INSERT INTO missions (id,team,started) VALUES (?,?,?)',(mission,team,time.time()))
+        sql(db,'INSERT INTO missions (id,team,started,club_name) VALUES (?,?,?,?)',(mission,team,time.time(),club_name))
         row=sql(db,'SELECT * FROM missions WHERE id=?',(mission,)).fetchone()
     session['mission']=mission
     return jsonify(mission=public(row))
+
+def answer_matches(value, target, stage):
+    if not target:
+        return None
+    if stage==4 and value.startswith('PENDIENTE · habilitado por monitor'):
+        return None
+    return normalize(value)==normalize(target) if stage in (0,9) else value.strip().casefold()==target.strip().casefold()
 
 @app.post('/api/answer')
 def answer():
     data=request.get_json(silent=True) or {}
     value=data.get('answer')
     if not isinstance(value,str) or not value.strip() or len(value)>300:
-        return jsonify(error='Escribe una respuesta válida.'),400
+        return jsonify(error='Debes escribir una respuesta antes de continuar.'),400
     with connection() as db:
         if not DATABASE_URL:
             sql(db,'BEGIN IMMEDIATE')
@@ -144,26 +181,23 @@ def answer():
         if not row or row['finished']:
             return jsonify(error='No hay una misión activa.'),409
         stage,team=row['stage'],row['team']
-        if data.get('stage')!=stage:
+        if type(data.get('stage')) is not int or data['stage']!=stage:
             return jsonify(error='La etapa cambió. Recarga para recuperar tu avance.'),409
-        if stage==4 and not all(photo(team).get(k) for k in ('url','answer','destination')):
-            return jsonify(error='Esta fotografía es provisional. Solicita al organizador que habilite el siguiente reto.'),409
-        target=expected(team)[stage]
-        if stage in (0,9):
-            correct=normalize(value)==normalize(target)
-        else:
-            correct=value.strip().casefold()==target.strip().casefold()
+        targets=expected(team)
+        correct=answer_matches(value,targets[stage],stage)
         attempts=json.loads(row['attempts'])+[dict(stage=stage,correct=correct)]
-        sql(db,'UPDATE missions SET attempts=? WHERE id=?',(json.dumps(attempts),row['id']))
-        if not correct:
-            return jsonify(correct=False,message='La señal no coincide. Revisa las pistas con tu equipo e inténtalo de nuevo.')
         answers=json.loads(row['answers'])+[value.strip()]
         finished=stage==9
-        sql(db,'UPDATE missions SET stage=?,answers=?,finished=? WHERE id=?',(stage+1,json.dumps(answers),int(finished),row['id']))
+        sql(db,'UPDATE missions SET stage=?,answers=?,attempts=?,finished=? WHERE id=?',(stage+1,json.dumps(answers),json.dumps(attempts),int(finished),row['id']))
         if finished:
-            sql(db,'INSERT INTO submissions (id,club,score,time_ms,answers) VALUES (?,?,?,?,?)',(row['id'],f'Equipo {team}',sum(not a.startswith('PENDIENTE') for a in answers),int((time.time()-row['started'])*1000),json.dumps(answers)))
+            score=sum(answer_matches(a,targets[i],i) is True for i,a in enumerate(answers))
+            sql(db,'INSERT INTO submissions (id,club,score,time_ms,answers,team,expected_answers) VALUES (?,?,?,?,?,?,?)',(row['id'],row['club_name'] or f'Equipo {team}',score,int((time.time()-row['started'])*1000),json.dumps(answers),team,json.dumps(targets)))
         updated=sql(db,'SELECT * FROM missions WHERE id=?',(row['id'],)).fetchone()
-    return jsonify(correct=True,message='Dirígete a '+photo(team)['destination'] if stage==4 else '¡Respuesta confirmada!',mission=public(updated))
+    message='Respuesta guardada. Los aciertos se contabilizan al finalizar.'
+    # El movimiento físico no depende de acertar: todos los equipos pueden continuar.
+    if stage==4 and photo(team).get('destination'):
+        message='Respuesta guardada. Dirígete a '+photo(team)['destination']
+    return jsonify(accepted=True,message=message,mission=public(updated))
 
 @app.post('/api/admin/login')
 def login():
@@ -181,13 +215,29 @@ def login():
     session['failures']=0
     return jsonify(success=True)
 
+LEGACY_ANSWERS=['I','8','F','P','0','X','3','Z','M','1']
+
 @app.get('/api/results')
 def results():
     if not is_admin():
         return jsonify(error='Ingresa la contraseña de organización.'),401
     with connection() as db:
-        rows=sql(db,'SELECT * FROM submissions ORDER BY score DESC,time_ms ASC,id ASC').fetchall()
-    return jsonify(leaderboard=[{**dict(r),'answers':json.loads(r['answers'])} for r in rows],correct_answers=expected(1),answers_by_team={f'Equipo {n}':expected(n) for n in range(1,6)})
+        rows=sql(db, 'SELECT s.*, m.team AS mission_team FROM submissions s LEFT JOIN missions m ON m.id=s.id ORDER BY s.score DESC,s.time_ms ASC,s.id ASC').fetchall()
+    entries=[]
+    for r in rows:
+        entry=dict(r)
+        team=entry.get('team') or entry.pop('mission_team', None)
+        entry.pop('mission_team', None)
+        answers=json.loads(entry['answers'])
+        stored=json.loads(entry.get('expected_answers') or '[]')
+        legacy=entry['id'].startswith('legacy-')
+        targets=stored if len(stored)==10 else LEGACY_ANSWERS if legacy else expected(team or 1)
+        entry.update(team=team,answers=answers,expected_answers=targets,legacy=legacy,
+            comparison=[dict(stage=i+1,title=f'Reto {i+1} · versión anterior' if legacy else TITLES[i],submitted=answers[i] if i<len(answers) else '',expected=targets[i],correct=answer_matches(answers[i],targets[i],i) if i<len(answers) else False) for i in range(10)])
+        entries.append(entry)
+    response=jsonify(leaderboard=entries)
+    response.headers['Cache-Control']='no-store'
+    return response
 
 @app.delete('/api/results/<submission_id>')
 def delete(submission_id):

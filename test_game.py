@@ -1,75 +1,124 @@
-import importlib.util, json, os, tempfile, unittest
+import json, os, sqlite3, unittest, uuid
 from pathlib import Path
 os.environ['DATABASE_URL']=''
-import uuid
 os.environ['DB_PATH']=str(Path(__file__).parent/'instance'/('test-'+uuid.uuid4().hex+'.sqlite3'))
 os.environ['SECRET_KEY']='test-secret'
 import app as game
+
 class GameTest(unittest.TestCase):
     def setUp(self):
         self.client=game.app.test_client()
         self.token=self.client.get('/api/state').json['csrf']
     def post(self,path,data,method='POST'):
         return self.client.open(path,method=method,json=data,headers={'X-CSRF-Token':self.token})
-    def test_five_teams(self):
+    def start(self,team=1,name='Club de prueba'):
+        return self.post('/api/start',{'team':team,'club_name':name})
+    def login(self):
+        return self.post('/api/admin/login',{'password':'wobukeneng'})
+    def finish(self,answers):
+        response=None
+        for stage,value in enumerate(answers):
+            response=self.post('/api/answer',{'stage':stage,'answer':value})
+            self.assertEqual(response.status_code,200)
+            self.assertTrue(response.json['accepted'])
+            self.assertNotIn('correct',response.json)
+            self.assertEqual(response.json['mission']['stage'],stage+1)
+        return response
+    def test_five_teams_accept_wrong_and_score_individually(self):
         for team in range(1,6):
             with self.subTest(team=team):
-                self.client=game.app.test_client();self.token=self.client.get('/api/state').json['csrf']
-                r=self.post('/api/start',{'team':team});self.assertEqual(r.status_code,200)
-                self.assertNotIn('correct_answers',r.json)
-                for stage,target in enumerate(game.expected(team)):
-                    if stage==4:
-                        self.assertTrue(r.json['mission']['photo']['pending'])
-                        self.assertEqual(self.post('/api/answer',{'stage':4,'answer':'inventado'}).status_code,409)
-                        self.assertEqual(self.post('/api/monitor/advance-photo',{'password':'wrong'}).status_code,403)
-                        r=self.post('/api/monitor/advance-photo',{'password':'wobukeneng'})
-                    else:
-                        wrong=self.post('/api/answer',{'stage':stage,'answer':'incorrecto'})
-                        self.assertFalse(wrong.json['correct'])
-                        self.assertEqual(self.client.get('/api/state').json['mission']['stage'],stage)
-                        if stage in (0,9):target=game.normalize(target)+'.'
-                        r=self.post('/api/answer',{'stage':stage,'answer':target})
-                        self.assertTrue(r.json['correct'])
-                    self.assertEqual(r.json['mission']['stage'],stage+1)
-                self.assertTrue(r.json['mission']['finished'])
-                self.assertEqual(self.post('/api/answer',{'stage':9,'answer':'LA INGENIERIA ES EQUIPO'}).status_code,409)
+                self.setUp()
+                name=f'Gremio QA {team}'
+                self.assertEqual(self.start(team,name).json['mission']['club_name'],name)
+                expected=game.expected(team)
+                answers=[a or 'pendiente' for a in expected]
+                answers[0]=game.normalize(answers[0])+'.'
+                answers[9]=game.normalize(answers[9])
+                answers[2]='9';answers[8]='000'
+                result=self.finish(answers)
+                self.assertTrue(result.json['mission']['finished'])
+                self.assertEqual(self.post('/api/answer',{'stage':9,'answer':'otra'}).status_code,409)
                 self.assertEqual(self.client.get('/api/results').status_code,401)
-                self.assertEqual(self.post('/api/admin/login',{'password':'wobukeneng'}).status_code,200)
-                rows=self.client.get('/api/results').json['leaderboard']
-                entry=next(e for e in rows if e['club']==f'Equipo {team}' and any(a.startswith('PENDIENTE') for a in e['answers']))
-                self.assertEqual(entry['score'],9)
-                self.assertGreaterEqual(entry['time_ms'],0)
-                self.assertEqual(self.post('/api/results/'+entry['id'],{},'DELETE').status_code,403)
-                self.assertEqual(self.post('/api/results/'+entry['id'],{'password':'wrong'},'DELETE').status_code,403)
-                self.assertEqual(self.post('/api/results/'+entry['id'],{'password':'wobukeneng'},'DELETE').status_code,200)
-    def test_configured_photo_full_score(self):
-        original=game.photo
-        game.photo=lambda team: {'url':'/static/challenges/foto-real.jpg','answer':'A001','destination':'aula A001, sobre autorizado'}
-        try:
-            r=self.post('/api/start',{'team':1})
-            for stage,target in enumerate(game.expected(1)):
-                if stage==4:
-                    self.assertFalse(r.json['mission']['photo']['pending'])
-                    self.assertFalse(self.post('/api/answer',{'stage':4,'answer':'A1'}).json['correct'])
-                    self.assertEqual(self.post('/api/monitor/advance-photo',{'password':'wobukeneng'}).status_code,409)
-                r=self.post('/api/answer',{'stage':stage,'answer':target})
-                self.assertTrue(r.json['correct'])
-                if stage==4:self.assertIn('aula A001',r.json['message'])
-            self.post('/api/admin/login',{'password':'wobukeneng'})
-            result=self.client.get('/api/results').json['leaderboard']
-            self.assertTrue(any(row['club']=='Equipo 1' and row['score']==10 for row in result))
-        finally:
-            game.photo=original
-    def test_csrf_and_validation(self):
-        self.assertEqual(self.client.post('/api/start',json={'team':1}).status_code,403)
-        for team in [None,True,0,6,'1']:
-            self.assertEqual(self.post('/api/start',{'team':team}).status_code,400)
-        self.post('/api/start',{'team':1})
+                self.login()
+                entry=next(r for r in self.client.get('/api/results').json['leaderboard'] if r['club']==name)
+                self.assertEqual(entry['team'],team)
+                self.assertEqual(entry['score'],7)
+                self.assertEqual(entry['answers'],answers)
+                self.assertFalse(entry['comparison'][2]['correct'])
+                self.assertFalse(entry['comparison'][8]['correct'])
+                self.assertIsNone(entry['comparison'][4]['correct'])
+                self.assertEqual(entry['comparison'][3]['expected'],game.CIRCUITS[team-1])
+                self.assertEqual(entry['comparison'][8]['expected'],game.CODES[team-1])
+    def test_no_empty_answers_or_skipped_stages(self):
+        self.assertEqual(self.client.post('/api/start',json={'team':1,'club_name':'QA'}).status_code,403)
+        self.start()
+        for value in ['', '   ',None,123,[]]:
+            self.assertEqual(self.post('/api/answer',{'stage':0,'answer':value}).status_code,400)
+            self.assertEqual(self.client.get('/api/state').json['mission']['stage'],0)
         self.assertEqual(self.post('/api/answer',{'stage':8,'answer':'251'}).status_code,409)
-        self.assertEqual(self.post('/api/answer',{'stage':0,'answer':123}).status_code,400)
+        self.assertEqual(self.post('/api/answer',{'stage':True,'answer':'1'}).status_code,409)
+        self.assertEqual(self.post('/api/answer',{'stage':0,'answer':'incorrecta'}).json['mission']['stage'],1)
+        self.assertEqual(self.post('/api/answer',{'stage':0,'answer':'otro clic'}).status_code,409)
+    def test_names_and_assigned_teams(self):
+        for team in [None,True,0,6,'1']:
+            self.assertEqual(self.start(team).status_code,400)
+        for name in [None,'','a',' '*6,'x'*61,'club\nno']:
+            self.assertEqual(self.start(1,name).status_code,400)
+        result=self.start(2,'  Club Ñandú  ')
+        self.assertEqual(result.json['mission']['club_name'],'Club Ñandú')
+        self.assertEqual(self.client.get('/api/state').json['mission']['club_name'],'Club Ñandú')
+    def test_configured_photo_and_expected_snapshot(self):
+        original=game.photo
+        game.photo=lambda team: {'url':'/static/challenges/aula.jpg','answer':'A001','destination':'aula A001'}
+        try:
+            self.start(3,'Foto con clave')
+            self.finish(game.expected(3))
+            game.photo=lambda team: {'url':'/otro.jpg','answer':'A002','destination':'otra aula'}
+            self.login()
+            entry=next(r for r in self.client.get('/api/results').json['leaderboard'] if r['club']=='Foto con clave')
+            self.assertEqual(entry['score'],10)
+            self.assertEqual(entry['comparison'][4]['expected'],'A001')
+            self.assertTrue(entry['comparison'][4]['correct'])
+        finally:game.photo=original
+    def test_password_each_entry_and_deletion(self):
+        self.start(1,'Registro descartable de pruebas')
+        self.finish(['incorrecta']*10)
+        self.assertEqual(self.login().status_code,200)
+        entry=next(r for r in self.client.get('/api/results').json['leaderboard'] if r['club']=='Registro descartable de pruebas')
+        self.assertEqual(entry['score'],0)
+        self.assertEqual(self.post('/api/results/'+entry['id'],{},'DELETE').status_code,403)
+        self.assertEqual(self.post('/api/results/'+entry['id'],{'password':'incorrecta'},'DELETE').status_code,403)
+        page=self.client.get('/leaderboard')
+        self.assertIn('no-store',page.headers['Cache-Control'])
+        self.assertEqual(self.client.get('/api/results').status_code,401)
+        self.assertEqual(self.post('/api/admin/login',{'password':'incorrecta'}).status_code,401)
+        self.login()
+        self.assertEqual(self.post('/api/results/'+entry['id'],{'password':'wobukeneng'},'DELETE').status_code,200)
+        self.client.get('/')
+        self.assertEqual(self.client.get('/api/results').status_code,401)
+    def test_migration_keeps_existing_rows(self):
+        original_path=game.DB_PATH
+        old_path=str(Path(original_path).with_name('old-'+uuid.uuid4().hex+'.sqlite3'))
+        db=sqlite3.connect(old_path)
+        db.execute("CREATE TABLE missions(id TEXT PRIMARY KEY,team INTEGER,started REAL,stage INTEGER,answers TEXT,attempts TEXT,finished INTEGER)")
+        db.execute("CREATE TABLE submissions(id TEXT PRIMARY KEY,club TEXT,score INTEGER,time_ms INTEGER,answers TEXT)")
+        db.execute('INSERT INTO missions VALUES (?,?,?,?,?,?,?)',('old-id',4,1.0,10,json.dumps(['x']*10),'[]',1))
+        db.execute('INSERT INTO submissions VALUES (?,?,?,?,?)',('old-id','Nombre antiguo',3,12345,json.dumps(['x']*10)))
+        db.commit();db.close()
+        try:
+            game.DB_PATH=old_path;game.init_db();game.init_db()
+            with game.connection() as db:
+                row=game.sql(db,'SELECT * FROM submissions WHERE id=?',('old-id',)).fetchone()
+                self.assertEqual(row['club'],'Nombre antiguo');self.assertEqual(row['score'],3);self.assertEqual(row['time_ms'],12345)
+            self.login()
+            row=next(r for r in self.client.get('/api/results').json['leaderboard'] if r['id']=='old-id')
+            self.assertEqual(row['team'],4)
+            self.assertEqual(row['comparison'][3]['expected'],'5')
+        finally:game.DB_PATH=original_path
     def test_word_banks_and_circuits(self):
         for team in range(1,6):
             self.assertEqual(str((((2|3)&(~(2&3)&15))^team)),game.CIRCUITS[team-1])
             phrase=' '.join(game.BANKS[team-1][int(n)-1] for n in game.CODES[team-1]+'4')
             self.assertEqual(game.normalize(phrase),'la ingenieria es equipo')
+
 if __name__=='__main__':unittest.main()
