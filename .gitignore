@@ -14,3 +14,4 @@ static/audio/morse.wav
 create_morse.py
 templates/leaderboard.html
 .deploy-env.json
+database.json
