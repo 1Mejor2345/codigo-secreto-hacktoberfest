@@ -20,3 +20,5 @@ html{background:#1a1612;font-family:Georgia,'Times New Roman',serif}body{backgro
 @media(max-width:899px){.challenge-layout{max-width:720px;margin:22px auto}.challenge-card{padding:25px 21px}.challenge-card h2{font-size:29px}.challenge-card #question{font-size:16px;line-height:1.8}.challenge-card #answer{font-size:18px}.challenge-card #answer.digit-answer{font-size:34px}.challenge-card #answer.signal-answer{font-size:31px}.challenge-layout .mission-sidebar #team-label{font-size:20px}.challenge-layout .mission-sidebar .timer{font-size:25px}.challenge-layout .mission-sidebar .timer-label{font-size:8px}.event-allies{margin-top:22px}}
 
 #feedback[data-error=true]{color:#efa3a0}
+
+.challenge-layout{min-height:0}@media(min-width:900px){.event-allies{margin-top:auto}}
