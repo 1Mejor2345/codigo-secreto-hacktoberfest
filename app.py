@@ -161,6 +161,19 @@ def start():
     session['mission']=mission
     return jsonify(mission=public(row))
 
+@app.post('/api/mission/name')
+def rename_mission():
+    data=request.get_json(silent=True) or {}
+    name=data.get('club_name')
+    if not isinstance(name,str) or not 2<=len(name.strip())<=60 or any(ord(c)<32 for c in name):
+        return jsonify(error='Escribe un nombre de 2 a 60 caracteres.'),400
+    with connection() as db:
+        updated=sql(db,'UPDATE missions SET club_name=? WHERE id=? AND finished=0',(name.strip(),session.get('mission','')))
+        if not updated.rowcount:
+            return jsonify(error='No hay una misión activa para cambiar el nombre.'),409
+        row=sql(db,'SELECT * FROM missions WHERE id=?',(session['mission'],)).fetchone()
+    return jsonify(mission=public(row))
+
 def answer_matches(value, target, stage):
     if not target:
         return None

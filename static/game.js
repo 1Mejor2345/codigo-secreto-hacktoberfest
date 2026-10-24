@@ -1,6 +1,6 @@
 'use strict';
 const $=s=>document.querySelector(s);
-let csrf='', mission=null, currentView='welcome', switching=false, signalAbort=null, timerInterval=null;
+let csrf='', mission=null, currentView='welcome', switching=false, signalAbort=null, timerInterval=null, editingName=false;
 const titles=['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Haz zoom','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final'];
 const kinds=['LECTURA Y BÚSQUEDA','DEDUCCIÓN NUMÉRICA','LÓGICA DE PYTHON','LÓGICA DIGITAL','OBSERVACIÓN DIGITAL','ATENCIÓN VISUAL','ESCUCHA Y RAZONAMIENTO','CRIPTOGRAFÍA Y AUDIO','CÓDIGO MORSE','INTEGRACIÓN DE PISTAS'];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -25,7 +25,7 @@ function show(name){document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!
 function showHome(){
   clearInterval(timerInterval);stopSignal();
   const active=mission&&!mission.finished;
-  $('#resume').hidden=!active;$('#resume-note').hidden=!active;$('#begin').hidden=Boolean(active);
+  $('#resume').hidden=!active;$('#edit-club-name').hidden=!active;$('#resume-note').hidden=!active;$('#begin').hidden=Boolean(active);
   $('#resume-note').textContent=active?mission.club_name+' · Equipo '+mission.team+' · Reto '+(mission.stage+1)+' de 10. El cronómetro continúa.':'';
   show('welcome');
 }
@@ -35,8 +35,9 @@ async function returnHome(){saveDraft();await transition(showHome);}
 $('#back-home').onclick=returnHome;$('#finish-home').onclick=returnHome;
 $('#resume').onclick=()=>transition(renderMission);
 $('a.event-lockup').addEventListener('click',e=>{if(e.ctrlKey||e.metaKey||e.shiftKey)return;e.preventDefault();returnHome();});
-$('#begin').onclick=()=>transition(()=>{show('identify');$('#team').focus();});
-$('#team-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;$('#team-error').textContent='';try{const data=await api('/api/start',{team:Number($('#team').value),club_name:$('#club-name').value.trim()});mission=data.mission;await transition(renderMission);}catch(err){$('#team-error').textContent=err.message;}finally{btn.disabled=false;}};
+$('#begin').onclick=()=>transition(()=>{editingName=false;$('#team').disabled=false;show('identify');$('#club-name').focus();});
+$('#edit-club-name').onclick=()=>transition(()=>{editingName=true;$('#club-name').value=mission.club_name;$('#team').value=String(mission.team);$('#team').disabled=true;show('identify');$('#club-name').focus();});
+$('#team-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;$('#team-error').textContent='';try{const data=await api(editingName?'/api/mission/name':'/api/start',{team:Number($('#team').value),club_name:$('#club-name').value.trim()});mission=data.mission;await transition(renderMission);}catch(err){$('#team-error').textContent=err.message;}finally{btn.disabled=false;}};
 function tick(){if(!mission||mission.finished)return;const seconds=Math.max(0,Math.floor(Date.now()/1000-mission.started));$('#timer').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
 function resource(html){$('#resource').innerHTML=html;}
 function stopSignal(){if(signalAbort)signalAbort.abort();signalAbort=null;$('#lamp')?.classList.remove('lit');}

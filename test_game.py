@@ -67,6 +67,16 @@ class GameTest(unittest.TestCase):
         result=self.start(2,'  Club Ñandú  ')
         self.assertEqual(result.json['mission']['club_name'],'Club Ñandú')
         self.assertEqual(self.client.get('/api/state').json['mission']['club_name'],'Club Ñandú')
+    def test_change_name_preserves_progress_and_team(self):
+        self.start(5,'Nombre inicial')
+        self.post('/api/answer',{'stage':0,'answer':'una respuesta incorrecta'})
+        renamed=self.post('/api/mission/name',{'club_name':'Club con nombre nuevo'}).json['mission']
+        self.assertEqual(renamed['club_name'],'Club con nombre nuevo')
+        self.assertEqual(renamed['stage'],1)
+        self.assertEqual(renamed['team'],5)
+        self.assertEqual(renamed['answers'],['una respuesta incorrecta'])
+        for stage in range(1,10):self.post('/api/answer',{'stage':stage,'answer':'incorrecta'})
+        self.assertEqual(self.post('/api/mission/name',{'club_name':'otro nombre'}).status_code,409)
     def test_configured_photo_and_expected_snapshot(self):
         original=game.photo
         game.photo=lambda team: {'url':'/static/challenges/aula.jpg','answer':'A001','destination':'aula A001'}

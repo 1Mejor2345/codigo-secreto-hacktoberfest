@@ -62,3 +62,5 @@ Pruebas con bases SQLite aisladas: los cinco equipos, respuestas erróneas que a
 ## Render
 
 Servicio gratuito con gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4. /healthz consulta SQL. PostgreSQL gratuito vence el 23 de noviembre de 2026; exportar los resultados antes. No se cambia automáticamente a un plan pagado.
+
+Una misión en curso permite editar el nombre del gremio desde el inicio sin reiniciar el reloj, borrar respuestas ni cambiar el número asignado.
