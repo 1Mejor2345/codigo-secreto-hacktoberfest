@@ -66,3 +66,5 @@ Servicio gratuito con gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --thread
 Una misión en curso permite editar el nombre del gremio desde el inicio sin reiniciar el reloj, borrar respuestas ni cambiar el número asignado.
 
 Los inputs de respuesta convierten automáticamente el texto a mayúsculas sin tildes y lo centran. Los numéricos filtran letras, signos y exceso de cifras. Si una misión previa había avanzado con el primer reto incorrecto, se pide corregirlo y luego se recuperan las respuestas posteriores sin borrarlas. El layout de PC se compacta desde 900 px sin reducir globalmente el zoom ni cambiar la escala móvil. Se eliminó el banner desplegable Clubs Royale; los tres logos quedan al pie del contenido.
+
+Los paneles de PC de 600–899 px y hasta 800 px de alto tienen una variante compacta adicional; los teléfonos de menos de 600 px conservan su escala.
