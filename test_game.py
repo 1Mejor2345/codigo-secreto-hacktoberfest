@@ -1,6 +1,6 @@
 import importlib.util, json, os, tempfile, unittest
 from pathlib import Path
-os.environ.pop('DATABASE_URL',None)
+os.environ['DATABASE_URL']=''
 import uuid
 os.environ['DB_PATH']=str(Path(__file__).parent/'instance'/('test-'+uuid.uuid4().hex+'.sqlite3'))
 os.environ['SECRET_KEY']='test-secret'
@@ -36,12 +36,30 @@ class GameTest(unittest.TestCase):
                 self.assertEqual(self.client.get('/api/results').status_code,401)
                 self.assertEqual(self.post('/api/admin/login',{'password':'wobukeneng'}).status_code,200)
                 rows=self.client.get('/api/results').json['leaderboard']
-                entry=next(e for e in rows if e['club']==f'Equipo {team}')
+                entry=next(e for e in rows if e['club']==f'Equipo {team}' and any(a.startswith('PENDIENTE') for a in e['answers']))
                 self.assertEqual(entry['score'],9)
                 self.assertGreaterEqual(entry['time_ms'],0)
                 self.assertEqual(self.post('/api/results/'+entry['id'],{},'DELETE').status_code,403)
                 self.assertEqual(self.post('/api/results/'+entry['id'],{'password':'wrong'},'DELETE').status_code,403)
                 self.assertEqual(self.post('/api/results/'+entry['id'],{'password':'wobukeneng'},'DELETE').status_code,200)
+    def test_configured_photo_full_score(self):
+        original=game.photo
+        game.photo=lambda team: {'url':'/static/challenges/foto-real.jpg','answer':'A001','destination':'aula A001, sobre autorizado'}
+        try:
+            r=self.post('/api/start',{'team':1})
+            for stage,target in enumerate(game.expected(1)):
+                if stage==4:
+                    self.assertFalse(r.json['mission']['photo']['pending'])
+                    self.assertFalse(self.post('/api/answer',{'stage':4,'answer':'A1'}).json['correct'])
+                    self.assertEqual(self.post('/api/monitor/advance-photo',{'password':'wobukeneng'}).status_code,409)
+                r=self.post('/api/answer',{'stage':stage,'answer':target})
+                self.assertTrue(r.json['correct'])
+                if stage==4:self.assertIn('aula A001',r.json['message'])
+            self.post('/api/admin/login',{'password':'wobukeneng'})
+            result=self.client.get('/api/results').json['leaderboard']
+            self.assertTrue(any(row['club']=='Equipo 1' and row['score']==10 for row in result))
+        finally:
+            game.photo=original
     def test_csrf_and_validation(self):
         self.assertEqual(self.client.post('/api/start',json={'team':1}).status_code,403)
         for team in [None,True,0,6,'1']:
