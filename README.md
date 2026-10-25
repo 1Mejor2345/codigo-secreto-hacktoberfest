@@ -41,7 +41,7 @@ ADMIN_PASSWORD_HASH o ADMIN_PASSWORD configuran el acceso. Borrar cada registro 
 
 ## Música y recursos visuales
 
-Cinco pistas MP3 de Dark Ages / Plants vs. Zombies 2 se descargaron y convirtieron localmente tras la declaración de autorización del organizador; ver MUSIC_CREDITS.md. Música habilitada por defecto; ante bloqueo del autoplay comienza con la primera interacción. La pista de portada se reproduce una sola vez por carga de página y no vuelve a empezar con clics posteriores; las otras escenas conservan su reproducción anterior. El parlante superior despliega el volumen y el silencio. Se pausa durante NEXO, doble cifrado y Morse.
+Cinco pistas MP3 de Dark Ages / Plants vs. Zombies 2 se descargaron y convirtieron localmente tras la declaración de autorización del organizador; ver MUSIC_CREDITS.md. Música habilitada por defecto; ante bloqueo del autoplay comienza con la primera interacción. La pista de portada se reproduce una sola vez por carga de página y no vuelve a empezar con clics posteriores; las otras escenas conservan su reproducción anterior. El parlante superior despliega el volumen y el silencio. Se pausa durante NEXO y doble cifrado; se reanuda al entrar al reto 9 (Morse).
 
 Tortuga y piedra mantienen su proporción dentro de un mismo contenedor, sin animación vertical independiente. Lockup del evento: SVG con los tres originales embebidos y exportación PNG transparente. Google for Developers usa el recurso oficial para fondo oscuro, exportado a PNG con alfa real, sin fondo blanco ni redibujado:
 https://www.gstatic.com/devrel-devsite/prod/v5a0f9ff8b593048661361a49e11ab98a8b1ac025e19e60e6189f2b56796f8a43/developers/images/lockup-dark-theme-new.svg
@@ -71,7 +71,7 @@ Los paneles de PC de 600–899 px y hasta 800 px de alto tienen una variante com
 
 ## Inicio del tiempo y destinos
 
-El reto 1 no consume tiempo. Al resolverlo se muestra dónde buscar los sobres; «Comenzar reto 2» inicia el reloj en el servidor una sola vez. Recargar antes de confirmar conserva el aviso y el reloj detenido. Las misiones que ya estaban avanzadas mantienen su inicio anterior.
+El reto 1 no consume tiempo. El aviso previo al reto 2 recuerda anotar cada respuesta sin revelar en qué reto se necesitará. Al resolverlo se muestra dónde buscar los sobres; «Comenzar reto 2» inicia el reloj en el servidor una sola vez. Recargar antes de confirmar conserva el aviso y el reloj detenido. Las misiones que ya estaban avanzadas mantienen su inicio anterior.
 
 Mientras faltan las fotos y aulas reales, se sortean cinco aulas provisionales distintas (101, 204, 305, 402, 503), una por equipo. La asignación se guarda en PostgreSQL y sobrevive a reinicios. Una `destination` configurada en `event_config.json` tiene prioridad. Al completar el reto 5 aparece el destino sobre esa misma pantalla; el reto 6 se abre al pulsar «Continuar al reto 6». Allí se puede reabrir el destino con «Ver aula». El reto 9 ofrece una tabla de números Morse mediante su botón de información. No se permite volver a responder etapas anteriores.
 

@@ -7,7 +7,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function updateMusic(){
   let scene=currentView;
   if(scene==='challenge') scene=mission.stage<4?'early':mission.stage<8?'middle':'final';
-  window.CodigoMusic.setScene(scene,{paused:currentView==='challenge'&&[6,7,8].includes(mission.stage)});
+  window.CodigoMusic.setScene(scene,{paused:currentView==='challenge'&&[6,7].includes(mission.stage)});
 }
 async function api(path,body,method='POST'){
   const res=await fetch(path,{method,headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},...(body?{body:JSON.stringify(body)}:{})});
@@ -77,7 +77,7 @@ function renderMission(){
  if(mission.finished){show('finish');$('#finish-note').textContent='Desafío finalizado.';clearInterval(timerInterval);return;}
  if(mission.awaiting_start){
   show('challenge');$('#answer-form').hidden=true;resource('');$('#challenge-title').textContent='Primer reto resuelto';$('#question').textContent='';$('#challenge-help').hidden=true;$('#team-label').textContent=mission.club_name;$('#assigned-team').textContent='Equipo '+mission.team;$('#stage-label').textContent='01 / 10';$('#stage-kind').textContent='';$('#progress-fill').style.width='10%';$('#feedback').textContent='';clearInterval(timerInterval);tick();
-  showNotice('¡Primer reto resuelto!',[mission.first_destination+'.','Busca los sobres en ese lugar.','Al pulsar «Comenzar reto 2» empieza a contar tu tiempo.'],'Comenzar reto 2 →',async()=>{const data=await api('/api/mission/begin-timed',{});mission=data.mission;renderMission();});return;
+  showNotice('¡Primer reto resuelto!',[mission.first_destination+'.','Busca los sobres en ese lugar.','Anoten cada respuesta. Lo que hoy parece resuelto podría abrir una puerta más adelante.','Al pulsar «Comenzar reto 2» empieza a contar tu tiempo.'],'Comenzar reto 2 →',async()=>{const data=await api('/api/mission/begin-timed',{});mission=data.mission;renderMission();});return;
  }
  const n=mission.stage;show('challenge');$('#team-label').textContent=mission.club_name;$('#assigned-team').textContent='Equipo '+mission.team;$('#stage-label').textContent=String(n+1).padStart(2,'0')+' / 10';$('#stage-kind').textContent='';$('#progress-fill').style.width=(n/10*100)+'%';$('#challenge-title').textContent=mission.title;$('#question').textContent=mission.question;
  const input=$('#answer'),length=numericLength(n);input.maxLength=length|| (n===4?60:300);input.inputMode=length?'numeric':'text';input.className=length===1?'digit-answer':length===3?'signal-answer':'text-answer';input.placeholder='';input.value=cleanAnswer(draftAnswer());
