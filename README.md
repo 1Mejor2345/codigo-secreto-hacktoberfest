@@ -1,10 +1,59 @@
-# Código Secreto · Hacktoberfest × IEEE HKN Nu Zeta
+# Código Secreto
 
-Juego educativo para cinco equipos de ESPOL. Diez etapas conectan pistas físicas y plataforma web. Interfaz medieval en español, con vistas para celular.
+Juego educativo de **Hacktoberfest × IEEE HKN Nu Zeta, ESPOL**, para cinco equipos. Combina diez retos con sobres, fichas impresas, pistas físicas y una plataforma web con estética medieval, música y clasificación final.
+
+**Juego publicado:** https://codigo-secreto-hacktoberfest.onrender.com/
+
+## Qué incluye
+
+- Nombre de gremio y número de equipo asignado del 1 al 5.
+- Diez retos consecutivos, con confirmación de respuestas y avance controlado por el servidor.
+- Cronómetro que empieza al confirmar el paso al segundo reto.
+- Progreso guardado en la base de datos y recuperación mediante «Continuar misión».
+- Transiciones con la tortuga del evento e interfaz adaptada a celulares.
+- Controles de volumen y silencio en el parlante de la esquina superior.
+- Un leaderboard protegido, con comparación entre respuestas enviadas y respuestas esperadas.
+
+## Recorrido del juego
+
+1. **Cuenta bien, lee mejor:** descifrar el enunciado que indica dónde buscar los sobres. Es necesario acertar para avanzar. El aviso de ubicación recuerda anotar las respuestas; «Comenzar reto 2» inicia el tiempo.
+2. **La contraseña imposible:** introducir el dígito central de la contraseña.
+3. **El algoritmo corrompido:** obtener el resultado de un programa reconstruido.
+4. **Compuertas en serie:** calcular la salida decimal del circuito del equipo.
+5. **Haz zoom:** observar la fotografía asignada e introducir su código. Al confirmar aparece el aula de destino sobre esa misma pantalla; el reto 6 se abre al pulsar «Continuar al reto 6».
+6. **Encuentra las diferencias:** responder usando la carta recogida en el aula. «Ver aula» permite consultar de nuevo el destino.
+7. **La transmisión interceptada:** resolver el protocolo NEXO con la grabación y el material físico.
+8. **Transmisión de doble cifrado:** recuperar el mensaje de audio y responder con el dígito solicitado.
+9. **Señales intermitentes:** interpretar tres cifras Morse. El foco reproduce la secuencia una sola vez por clic; después queda apagado y aparece «Volver a repetir». Hay una tabla de conversión consultable.
+10. **Mensaje final:** combinar respuestas anteriores con el banco de palabras del equipo. Es necesario acertar para finalizar.
+
+Las grabaciones y los materiales físicos de los retos se consultan según las fichas y sus QR; los MP3 de `static/audio/` son la música de ambiente de la plataforma.
+
+## Reglas de respuestas y puntuación
+
+- El primer reto y el mensaje final requieren una respuesta correcta.
+- Para esas frases se ignoran mayúsculas, tildes y puntuación y se normalizan los espacios.
+- Los retos numéricos permiten continuar con una respuesta incorrecta, pero exigen el formato indicado: un dígito, salvo Morse, que requiere tres cifras.
+- No se pueden volver a responder retos anteriores ni saltarse etapas.
+- Los campos de texto convierten la entrada a mayúsculas sin tildes; los numéricos filtran caracteres y longitud.
+- Al finalizar, el servidor calcula los aciertos con las claves correspondientes al equipo. Una foto sin clave configurada queda pendiente y no suma acierto.
+- La clasificación ordena por más aciertos y, en empate, por menor tiempo.
+
+## Tiempo, recarga y conexión
+
+El primer reto no consume tiempo. El inicio queda guardado en el servidor al pulsar «Comenzar reto 2» y no se reinicia al recargar. Una vez iniciado, el tiempo continúa aunque se vuelva a la portada o se pierda la conexión.
+
+Cada respuesta aceptada y el avance se guardan en la base de datos. Al recargar con conexión, la portada ofrece «Continuar misión». La recuperación requiere el mismo navegador y conservar su cookie de sesión; no hay un código para transferir la misión a otro dispositivo.
+
+Si una petición se interrumpe, recargar al recuperar internet permite consultar el último estado guardado. Una respuesta que no llegó al servidor no está confirmada. No existe funcionamiento sin conexión ni reconexión automática durante la carga inicial. El borrador de la respuesta actual puede conservarse en la misma pestaña al salir normalmente, pero no sustituye el guardado del servidor.
 
 ## Ejecutar localmente
 
-Python 3.12 o posterior. Ejecutar INICIAR_LOCAL.cmd o:
+Requisitos: **Python 3.12 o posterior** y acceso a internet para instalar las dependencias iniciales.
+
+En Windows, abrir `INICIAR_LOCAL.cmd`. El lanzador crea un entorno virtual, instala `requirements.txt` y ejecuta la aplicación. Para configurar una instalación nueva, copiar primero `.env.example` a `.env` y revisar sus valores.
+
+Alternativa en PowerShell, desde la carpeta del proyecto:
 
 ```powershell
 python -m venv .venv
@@ -13,66 +62,125 @@ Copy-Item .env.example .env
 .venv\Scripts\python app.py
 ```
 
-Abrir http://localhost:5001. SECRET_KEY debe ser aleatoria y estable. Sin DATABASE_URL se usa SQLite en instance/game.sqlite3. Con DATABASE_URL se usa PostgreSQL. Render utiliza la conexión interna de PostgreSQL en Ohio, sin acceso externo a la base. Credenciales excluidas de Git.
+Abrir **http://localhost:5001/**. No sobrescribir un `.env` existente al actualizar.
 
-## Dinámica vigente
+### Configuración
 
-El participante introduce el nombre del club o gremio (2–60 caracteres) y el equipo asignado (1–5). Debe escribir y confirmar una respuesta para cada uno de los diez retos. El primer reto debe acertarse para avanzar, ignorando mayúsculas, tildes y puntuación y normalizando espacios. El mensaje final también debe acertarse para terminar, como indica la guía de programadores. Los retos numéricos permiten continuar aunque el dígito sea incorrecto; solo aceptan un dígito, excepto Morse, que exige tres cifras. El puntaje se calcula en el servidor al finalizar. No se publica la solución durante el recorrido.
+- `SECRET_KEY`: secreto aleatorio y estable para firmar las sesiones. Mantenerlo entre reinicios para no invalidar las sesiones existentes.
+- `ADMIN_PASSWORD_HASH`: hash de la contraseña de organización, si se configura.
+- `ADMIN_PASSWORD`: alternativa de contraseña en texto dentro del entorno; el hash tiene prioridad.
+- `DATABASE_URL`: conexión PostgreSQL. Si no se define, se utiliza SQLite local.
+- `DB_PATH`: ruta SQLite alternativa; por defecto, `instance/game.sqlite3`.
+- `PORT`: puerto local; por defecto, `5001`.
+- `RENDER=true`: activa cookies seguras para HTTPS en Render.
 
-El orden es lectura, contraseña, Python, circuito, fotografía, diferencias, NEXO, doble cifrado, Morse y mensaje final. A=2 y B=3 son constantes de cuatro bits. Circuitos por equipo: 0, 3, 2, 5, 4. Morse: 251, 372, 583, 916, 635. NEXO: 5. Doble cifrado: 8. Las frases admiten cambios de tildes, mayúsculas y puntuación; las respuestas numéricas conservan ceros iniciales y orden.
+`.env`, la configuración real de las fotos y las bases SQLite están excluidos de Git. Las credenciales de producción se mantienen en las variables del servicio, no en el README.
 
-Volver al inicio conserva la misión y el borrador local de la respuesta actual. El cronómetro continúa. «Continuar misión» retoma el reto pendiente. Solo las misiones finalizadas entran al ranking. Un nombre no sustituye el número asignado, que determina las claves de ese equipo.
+## Fotos y aulas del reto 5
 
-## Aulas pendientes
+Las fotos y los códigos reales siguen pendientes de preparación. Mientras tanto, aparece una imagen genérica y se puede introducir `PENDIENTE` para avanzar sin sumar acierto por ese reto.
 
-Copiar event_config.example.json a event_config.json y completar url, answer y destination para cada foto. Equipos 1–5 reciben fotos 0, 3, 2, 5 y 4. Guardar los códigos como cadenas para conservar ceros iniciales. No guardar claves en static.
+Cada equipo recibe un aula provisional diferente, sorteada entre **101, 204, 305, 402 y 503**. La asignación se guarda en la base de datos y se conserva entre reinicios. Los destinos se muestran como provisionales.
 
-Sin foto real se muestra una ilustración genérica y se pide escribir «pendiente». Esa respuesta permite continuar y queda visible en la comparación; sin una clave real la etapa no suma acierto y se marca pendiente. No se inventan aulas.
+Para preparar el evento:
 
-## Un solo leaderboard
+1. Copiar `event_config.example.json` a `event_config.json`.
+2. Completar `url`, `answer` y `destination` para las fotos identificadas como `0`, `3`, `2`, `5` y `4`, correspondientes a los equipos 1–5.
+3. Guardar las claves como cadenas de texto para conservar ceros iniciales.
+4. Publicar las fotografías en una ruta accesible, manteniendo las respuestas fuera de los archivos estáticos.
+5. Asegurar que `event_config.json` esté disponible en el servidor: es un archivo local excluido de Git y no se publica con un simple push.
 
-El acceso está en el pequeño escudo discreto de la esquina inferior izquierda. La ruta única es /leaderboard (/admin redirige allí). Cada entrada o recarga exige de nuevo la contraseña de organización. / y /leaderboard revocan la sesión administrativa previa. Las respuestas correctas y el ranking están protegidos en servidor; las respuestas de la API y la página no se almacenan en caché.
+Una `destination` configurada tiene prioridad sobre el aula provisional. Para que la fotografía se considere lista se requieren los tres campos.
 
-Se ordena por más aciertos y menor tiempo en empate. Cada registro muestra nombre del club, equipo asignado, resultado por reto y comparación de **respuesta enviada** frente a **respuesta real**. No hay selector de versiones ni rankings separados. En celular, las mismas filas se convierten en tarjetas legibles. Los datos de referencia se devuelven por registro y se conserva una instantánea de la clave usada al finalizar.
+## Leaderboard y organización
 
-Los siete registros originales se importan una sola vez desde legacy-results.json, preservando sus puntajes y tiempos. Se comparan con su clave histórica; no se vuelven a importar después de borrarlos. La migración agrega columnas sin borrar registros de versiones anteriores.
+La ruta es **`/leaderboard`**; `/admin` redirige allí. También se accede mediante el escudo discreto de la esquina inferior izquierda.
 
-ADMIN_PASSWORD_HASH o ADMIN_PASSWORD configuran el acceso. Borrar cada registro exige volver a escribir la contraseña. «Cerrar acceso» revoca la sesión. El ranking se actualiza cada tres segundos cuando no se está consultando una comparación. Exportar resultados descarga JSON para conservarlos antes del vencimiento de la base gratuita.
+- Cada entrada o recarga del leaderboard exige iniciar sesión de nuevo.
+- Se muestra una sola clasificación con el nombre, equipo, aciertos, tiempo y detalle de cada reto.
+- «Comparar respuestas» muestra lo enviado frente a la clave usada al finalizar.
+- La versión móvil presenta los mismos registros en tarjetas.
+- Los resultados se actualizan automáticamente cada tres segundos, salvo mientras se consulta una comparación o un diálogo.
+- Borrar un registro exige volver a escribir la contraseña.
+- «Exportar resultados» descarga una copia JSON y «Cerrar acceso» cierra la sesión administrativa.
 
-## Música y recursos visuales
+La base conserva misiones y resultados por separado. Borrar un resultado del leaderboard no elimina automáticamente la misión asociada.
 
-Cinco pistas MP3 de Dark Ages / Plants vs. Zombies 2 se descargaron y convirtieron localmente tras la declaración de autorización del organizador; ver MUSIC_CREDITS.md. Música habilitada por defecto; ante bloqueo del autoplay comienza con la primera interacción. La pista de portada se reproduce una sola vez por carga de página y no vuelve a empezar con clics posteriores; las otras escenas conservan su reproducción anterior. El parlante superior despliega el volumen y el silencio. Se pausa durante NEXO y doble cifrado; se reanuda al entrar al reto 9 (Morse).
+`legacy-results.json` conserva los registros históricos de la versión inicial. Se importan una sola vez al inicializar una base sin la marca `legacy-imported`; no se reinsertan al reiniciar una base existente después de borrarlos. Las muestras actuales y los resultados del evento viven en la base de datos, no en el repositorio.
 
-Tortuga y piedra mantienen su proporción dentro de un mismo contenedor, sin animación vertical independiente. Lockup del evento: SVG con los tres originales embebidos y exportación PNG transparente. Google for Developers usa el recurso oficial para fondo oscuro, exportado a PNG con alfa real, sin fondo blanco ni redibujado:
-https://www.gstatic.com/devrel-devsite/prod/v5a0f9ff8b593048661361a49e11ab98a8b1ac025e19e60e6189f2b56796f8a43/developers/images/lockup-dark-theme-new.svg
+## Música e identidad visual
 
-Se retiró el emblema adicional de IEEE Eta Kappa Nu de la fila de aliados. Las fichas originales se conservan en los archivos del proyecto. Los materiales físicos, sus QR y las diferencias siguen siendo parte de la experiencia. La pantalla de cada reto usa el enunciado y la confirmación de la guía de programadores, sin explicaciones añadidas.
+El parlante superior permite ajustar el volumen o silenciar. La preferencia se conserva en el navegador. La música está habilitada inicialmente; si el navegador bloquea la reproducción automática, comienza con la primera interacción.
 
-## Validación
+- La música de portada se reproduce una sola vez por carga de página.
+- Los retos 7 y 8 mantienen la música en pausa para facilitar la escucha.
+- La música vuelve al entrar en el reto 9 y continúa en el mensaje final.
+- El cierre tiene su propia pista.
+
+La interfaz utiliza los recursos gráficos del evento y una composición transparente de sus marcas. La tortuga y la piedra comparten un contenedor para conservar su posición relativa.
+
+Los créditos y la procedencia de las pistas están en [MUSIC_CREDITS.md](MUSIC_CREDITS.md). Los recursos de terceros no adquieren una licencia libre por formar parte de este proyecto.
+
+## Estructura del repositorio
+
+```text
+codigo-secreto-web/
+├── app.py                       # Servidor, sesiones, validación y persistencia
+├── templates/                   # Juego y panel de organización
+├── static/
+│   ├── game.js                  # Interfaz y recorrido
+│   ├── admin.js                 # Leaderboard
+│   ├── sound.js                 # Música y volumen
+│   ├── game.css                 # Estilos base
+│   ├── medieval.css             # Tema y adaptación de pantalla
+│   ├── audio/                   # Música de ambiente
+│   ├── event/                   # Identidad visual del evento
+│   ├── sponsors/                # Marcas de la comunidad
+│   └── challenges/              # Recursos gráficos de los retos
+├── event_config.example.json    # Modelo de configuración de fotos
+├── legacy-results.json          # Importación histórica inicial
+├── requirements.txt             # Dependencias del servidor
+├── INICIAR_LOCAL.cmd            # Lanzador para Windows
+├── .env.example                 # Modelo de variables de entorno
+├── MUSIC_CREDITS.md              # Créditos musicales
+└── README.md
+```
+
+En la copia local se conserva además `archivo-local/documentacion/`, con las guías, los imprimibles y los recursos originales entregados para el evento. Ese material está excluido del seguimiento local de Git y no se despliega. Los archivos temporales de revisión, fotogramas, capturas, bases de pruebas y scripts auxiliares se retiraron.
+
+## Render y base de datos
+
+El despliegue actual usa un servicio web de Render conectado a este repositorio privado, con PostgreSQL mediante su conexión interna. Los cambios enviados a `main` activan el despliegue automático del servicio existente.
+
+**Construcción:**
+
+```text
+pip install -r requirements.txt
+```
+
+**Arranque:**
+
+```sh
+gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4
+```
+
+**Comprobación de salud:** `GET /healthz`. Ejecuta una consulta SQL y devuelve el estado y el tipo de almacenamiento.
+
+Al iniciar, el servidor crea las tablas necesarias y añade las columnas de versiones anteriores sin borrar los resultados. Las tablas principales son `missions`, `submissions` y `app_metadata`.
+
+Para una instalación nueva en Render, configurar un `SECRET_KEY` estable, la contraseña de organización y `DATABASE_URL` con la conexión PostgreSQL apropiada. No usar SQLite en el almacenamiento efímero del servicio como sustituto de la base de producción. Consultar en el panel las condiciones y la fecha de vencimiento de la base gratuita y exportar los resultados antes de reemplazarla.
+
+## Comprobaciones de mantenimiento
+
+Sin modificar la base de producción:
 
 ```powershell
-python -m unittest test_game -v
+python -c "import ast; from pathlib import Path; ast.parse(Path('app.py').read_text(encoding='utf-8')); print('Sintaxis Python correcta')"
 node --check static/game.js
 node --check static/admin.js
 node --check static/sound.js
 ```
 
-Pruebas con bases SQLite aisladas: los cinco equipos, bloqueo de primer reto y mensaje final incorrectos, variantes de mayúsculas/tildes/puntuación, números incorrectos que avanzan, bloqueo de respuestas vacías y saltos, puntaje real, nombre, clave específica por equipo, instantáneas de referencia, migración de datos antiguos, contraseña en cada entrada, CSRF y nueva contraseña al borrar. La revisión de anchos de celular se realiza con iframes de 320–430 px en un servidor local de pruebas, sin modificar datos de Render.
+Node.js solo se necesita para esas comprobaciones opcionales de JavaScript; no es una dependencia del servidor del juego.
 
-## Render
-
-Servicio gratuito con gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4. /healthz consulta SQL. PostgreSQL gratuito vence el 23 de noviembre de 2026; exportar los resultados antes. No se cambia automáticamente a un plan pagado.
-
-Una misión en curso permite editar el nombre del gremio desde el inicio sin reiniciar el reloj, borrar respuestas ni cambiar el número asignado.
-
-Los inputs de respuesta convierten automáticamente el texto a mayúsculas sin tildes y lo centran. Los numéricos filtran letras, signos y exceso de cifras. Si una misión previa había avanzado con el primer reto incorrecto, se pide corregirlo y luego se recuperan las respuestas posteriores sin borrarlas. El layout de PC se compacta desde 900 px sin reducir globalmente el zoom ni cambiar la escala móvil. Se eliminó el banner desplegable Clubs Royale; los tres logos quedan al pie del contenido.
-
-Los paneles de PC de 600–899 px y hasta 800 px de alto tienen una variante compacta adicional; los teléfonos de menos de 600 px conservan su escala.
-
-## Inicio del tiempo y destinos
-
-El reto 1 no consume tiempo. El aviso previo al reto 2 recuerda anotar cada respuesta sin revelar en qué reto se necesitará. Al resolverlo se muestra dónde buscar los sobres; «Comenzar reto 2» inicia el reloj en el servidor una sola vez. Recargar antes de confirmar conserva el aviso y el reloj detenido. Las misiones que ya estaban avanzadas mantienen su inicio anterior.
-
-Mientras faltan las fotos y aulas reales, se sortean cinco aulas provisionales distintas (101, 204, 305, 402, 503), una por equipo. La asignación se guarda en PostgreSQL y sobrevive a reinicios. Una `destination` configurada en `event_config.json` tiene prioridad. Al completar el reto 5 aparece el destino sobre esa misma pantalla; el reto 6 se abre al pulsar «Continuar al reto 6». Allí se puede reabrir el destino con «Ver aula». El reto 9 ofrece una tabla de números Morse mediante su botón de información. No se permite volver a responder etapas anteriores.
-
-La señal Morse se reproduce una sola vez por clic. Al terminar los tres dígitos, el foco queda apagado y el control muestra «Volver a repetir». También se puede detener y reproducir de nuevo manualmente.
+Después de publicar, comprobar que el despliegue figure como activo, que `/healthz` responda correctamente y que el juego y `/leaderboard` carguen. Si se mantiene una pestaña abierta durante una actualización, recargar para obtener los archivos nuevos y usar «Continuar misión».
