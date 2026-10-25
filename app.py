@@ -83,7 +83,17 @@ def init_db():
         sql(db,"CREATE TABLE IF NOT EXISTS missions (id TEXT PRIMARY KEY, team INTEGER NOT NULL, started DOUBLE PRECISION NOT NULL, stage INTEGER NOT NULL DEFAULT 0, answers TEXT NOT NULL DEFAULT '[]', attempts TEXT NOT NULL DEFAULT '[]', finished INTEGER NOT NULL DEFAULT 0)")
         sql(db,"CREATE TABLE IF NOT EXISTS submissions (id TEXT PRIMARY KEY, club TEXT NOT NULL, score INTEGER NOT NULL, time_ms BIGINT NOT NULL, answers TEXT NOT NULL)")
         sql(db,"CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        add_columns(db, 'missions', {'club_name': "TEXT NOT NULL DEFAULT ''"})
+        # Backfill only on the first migration, preserving clocks already in progress.
+        if DATABASE_URL:
+            had_clock=sql(db,"SELECT 1 FROM information_schema.columns WHERE table_name='missions' AND column_name='timed_started'").fetchone()
+        else:
+            had_clock=any(r['name']=='timed_started' for r in sql(db,'PRAGMA table_info(missions)').fetchall())
+        add_columns(db, 'missions', {'club_name': "TEXT NOT NULL DEFAULT ''", 'timed_started': 'DOUBLE PRECISION'})
+        if not had_clock:
+            sql(db,'UPDATE missions SET timed_started=started WHERE stage>0')
+        rooms=['101','204','305','402','503']
+        secrets.SystemRandom().shuffle(rooms)
+        sql(db,'INSERT INTO app_metadata (key,value) VALUES (?,?) ON CONFLICT (key) DO NOTHING',('demo-classrooms',json.dumps(rooms)))
         add_columns(db, 'submissions', {'team': 'INTEGER', 'expected_answers': "TEXT NOT NULL DEFAULT '[]'"})
         legacy=ROOT/'legacy-results.json'
         if legacy.exists() and not sql(db,'SELECT value FROM app_metadata WHERE key=?',('legacy-imported',)).fetchone():
@@ -98,6 +108,15 @@ def event_config():
 
 def photo(team):
     return event_config().get('photos',{}).get(CIRCUITS[team-1],{})
+
+def classroom(team):
+    configured=photo(team).get('destination')
+    if configured:
+        return configured
+    with connection() as db:
+        rooms=json.loads(sql(db,'SELECT value FROM app_metadata WHERE key=?',('demo-classrooms',)).fetchone()['value'])
+    return 'Aula '+rooms[team-1]+' (provisional)'
+
 
 def expected(team):
     return [LOCATIONS[team-1],'4','2',CIRCUITS[team-1],photo(team).get('answer',''),'5','5','8',CODES[team-1],'LA INGENIERÍA ES EQUIPO']
@@ -150,9 +169,13 @@ def needs_first_correction(row):
 
 def public(row):
     team,stage=row['team'],0 if needs_first_correction(row) else row['stage']
-    value=dict(team=team,club_name=row['club_name'] or f'Equipo {team}',stage=stage,started=row['started'],finished=bool(row['finished']),answers=json.loads(row['answers']))
+    value=dict(team=team,club_name=row['club_name'] or f'Equipo {team}',stage=stage,started=row['timed_started'],awaiting_start=stage==1 and row['timed_started'] is None,finished=bool(row['finished']),answers=json.loads(row['answers']))
     if stage<10:
         value.update(title=f'Reto {stage+1} — {TITLES[stage]}',question=QUESTIONS[stage],confirmation=CONFIRMATIONS[stage])
+    if stage==1 and row['timed_started'] is None:
+        value['first_destination']=LOCATIONS[team-1]
+    if stage in (5,6,7,8,9):
+        value['classroom']=classroom(team)
     if stage==4:
         value['photo']=dict(url=photo(team).get('url') or '/static/event/aula-provisional.svg',number=CIRCUITS[team-1],pending=not all(photo(team).get(k) for k in ('url','answer','destination')))
     if stage==8:
@@ -187,6 +210,20 @@ def start():
         row=sql(db,'SELECT * FROM missions WHERE id=?',(mission,)).fetchone()
     session['mission']=mission
     return jsonify(mission=public(row))
+
+@app.post('/api/mission/begin-timed')
+def begin_timed():
+    with connection() as db:
+        if not DATABASE_URL:
+            sql(db,'BEGIN IMMEDIATE')
+        row=sql(db,'SELECT * FROM missions WHERE id=?'+(' FOR UPDATE' if DATABASE_URL else ''),(session.get('mission',''),)).fetchone()
+        if not row or row['finished'] or row['stage']!=1 or needs_first_correction(row):
+            return jsonify(error='El primer reto debe estar resuelto.'),409
+        if row['timed_started'] is None:
+            sql(db,'UPDATE missions SET timed_started=? WHERE id=?',(time.time(),row['id']))
+        updated=sql(db,'SELECT * FROM missions WHERE id=?',(row['id'],)).fetchone()
+    return jsonify(mission=public(updated))
+
 
 @app.post('/api/mission/name')
 def rename_mission():
@@ -237,6 +274,8 @@ def answer():
             return jsonify(error='La etapa cambió. Recarga para recuperar tu avance.'),409
         if stage in NUMERIC_LENGTHS and (not value.isascii() or not value.isdigit() or len(value)!=NUMERIC_LENGTHS[stage]):
             return jsonify(error='Ingresa un dígito.' if NUMERIC_LENGTHS[stage]==1 else 'Ingresa tres dígitos.'),400
+        if stage>0 and row['timed_started'] is None:
+            return jsonify(error='Confirma el inicio del tiempo para continuar.'),409
         targets=expected(team)
         correct=answer_matches(value,targets[stage],stage)
         if stage in (0,9) and not correct:
@@ -249,11 +288,11 @@ def answer():
         sql(db,'UPDATE missions SET stage=?,answers=?,attempts=?,finished=? WHERE id=?',(stage+1,json.dumps(answers),json.dumps(attempts),int(finished),row['id']))
         if finished:
             score=sum(answer_matches(a,targets[i],i) is True for i,a in enumerate(answers))
-            sql(db,'INSERT INTO submissions (id,club,score,time_ms,answers,team,expected_answers) VALUES (?,?,?,?,?,?,?)',(row['id'],row['club_name'] or f'Equipo {team}',score,int((time.time()-row['started'])*1000),json.dumps(answers),team,json.dumps(targets)))
+            sql(db,'INSERT INTO submissions (id,club,score,time_ms,answers,team,expected_answers) VALUES (?,?,?,?,?,?,?)',(row['id'],row['club_name'] or f'Equipo {team}',score,int((time.time()-row['timed_started'])*1000),json.dumps(answers),team,json.dumps(targets)))
         updated=sql(db,'SELECT * FROM missions WHERE id=?',(row['id'],)).fetchone()
     message=''
-    if stage==4 and correct and photo(team).get('destination'):
-        message='Dirígete a '+photo(team)['destination']
+    if stage==4:
+        message='Dirígete a '+classroom(team)+' y busca la carta del reto 6.'
     return jsonify(accepted=True,message=message,mission=public(updated))
 
 @app.post('/api/admin/login')

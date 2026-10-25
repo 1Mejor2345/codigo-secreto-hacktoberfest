@@ -18,6 +18,7 @@ class GameTest(unittest.TestCase):
     def finish(self,answers):
         response=None
         for stage,value in enumerate(answers):
+            if stage==1:self.post('/api/mission/begin-timed',{})
             response=self.post('/api/answer',{'stage':stage,'answer':value})
             self.assertEqual(response.status_code,200)
             self.assertTrue(response.json['accepted'])
@@ -77,6 +78,7 @@ class GameTest(unittest.TestCase):
         self.assertEqual(renamed['stage'],1)
         self.assertEqual(renamed['team'],5)
         self.assertEqual(renamed['answers'],[game.LOCATIONS[4]])
+        self.post('/api/mission/begin-timed',{})
         for stage in range(1,10):self.post('/api/answer',{'stage':stage,'answer':'LA INGENIERIA ES EQUIPO' if stage==9 else 'pendiente' if stage==4 else '000' if stage==8 else '9'})
         self.assertEqual(self.post('/api/mission/name',{'club_name':'otro nombre'}).status_code,409)
     def test_configured_photo_and_expected_snapshot(self):
@@ -138,6 +140,7 @@ class GameTest(unittest.TestCase):
                 result=self.post('/api/answer',{'stage':0,'answer':variant})
                 self.assertTrue(result.json['accepted'])
                 self.assertEqual(result.json['mission']['stage'],1)
+                self.post('/api/mission/begin-timed',{})
                 for value in ['12','e','-1','２','']:
                     self.assertEqual(self.post('/api/answer',{'stage':1,'answer':value}).status_code,400)
                 self.assertTrue(self.post('/api/answer',{'stage':1,'answer':'9'}).json['accepted'])
@@ -145,6 +148,7 @@ class GameTest(unittest.TestCase):
         self.start(1,'Mensaje final con validacion')
         answers=game.expected(1)
         for stage,target in enumerate(answers[:9]):
+            if stage==1:self.post('/api/mission/begin-timed',{})
             response=self.post('/api/answer',{'stage':stage,'answer':target or 'PENDIENTE'})
             self.assertTrue(response.json['accepted'])
         wrong=self.post('/api/answer',{'stage':9,'answer':'UN MENSAJE INCORRECTO'})
@@ -156,11 +160,49 @@ class GameTest(unittest.TestCase):
         self.start(2,'Mision ya empezada')
         with self.client.session_transaction() as sess:mission_id=sess['mission']
         with game.connection() as db:
-            game.sql(db,'UPDATE missions SET stage=2,answers=? WHERE id=?',(json.dumps(['respuesta vieja incorrecta','9']),mission_id))
+            game.sql(db,'UPDATE missions SET timed_started=started,stage=2,answers=? WHERE id=?',(json.dumps(['respuesta vieja incorrecta','9']),mission_id))
         self.assertEqual(self.client.get('/api/state').json['mission']['stage'],0)
         result=self.post('/api/answer',{'stage':0,'answer':game.LOCATIONS[1]})
         self.assertEqual(result.json['mission']['stage'],2)
         self.assertEqual(result.json['mission']['answers'],[game.LOCATIONS[1],'9'])
+    def test_timer_waits_for_acknowledgement_and_cannot_restart(self):
+        from unittest.mock import patch
+        baseline=game.time.time()
+        with patch.object(game.time,'time',return_value=baseline):
+            self.assertIsNone(self.start().json['mission']['started'])
+        self.assertEqual(self.post('/api/mission/begin-timed',{}).status_code,409)
+        with patch.object(game.time,'time',return_value=baseline+1000):
+            mission=self.post('/api/answer',{'stage':0,'answer':game.LOCATIONS[0]}).json['mission']
+            self.assertTrue(mission['awaiting_start'])
+            self.assertIsNone(mission['started'])
+            self.assertEqual(mission['first_destination'],game.LOCATIONS[0])
+            self.assertTrue(self.client.get('/api/state').json['mission']['awaiting_start'])
+            self.assertEqual(self.post('/api/answer',{'stage':1,'answer':'4'}).status_code,409)
+        with patch.object(game.time,'time',return_value=baseline+2000):
+            self.assertEqual(self.post('/api/mission/begin-timed',{}).json['mission']['started'],baseline+2000)
+        with patch.object(game.time,'time',return_value=baseline+3000):
+            self.assertEqual(self.post('/api/mission/begin-timed',{}).json['mission']['started'],baseline+2000)
+            for stage,target in enumerate(game.expected(1)[1:],1):
+                result=self.post('/api/answer',{'stage':stage,'answer':target or 'PENDIENTE'})
+                self.assertEqual(result.status_code,200)
+            self.login()
+            entry=next(r for r in self.client.get('/api/results').json['leaderboard'] if r['id']==self._mission_id())
+            self.assertEqual(entry['time_ms'],1000000)
+    def _mission_id(self):
+        with self.client.session_transaction() as sess:return sess['mission']
+    def test_classrooms_unique_stable_and_recalled_after_photo(self):
+        rooms=[game.classroom(team) for team in range(1,6)]
+        self.assertEqual(len(set(rooms)),5)
+        game.init_db()
+        self.assertEqual(rooms,[game.classroom(team) for team in range(1,6)])
+        self.start(2)
+        for stage,target in enumerate(game.expected(2)[:5]):
+            if stage==1:self.post('/api/mission/begin-timed',{})
+            result=self.post('/api/answer',{'stage':stage,'answer':target or 'PENDIENTE'})
+        self.assertIn(rooms[1],result.json['message'])
+        self.assertEqual(result.json['mission']['classroom'],rooms[1])
+        self.assertEqual(self.client.get('/api/state').json['mission']['classroom'],rooms[1])
+        self.assertEqual(self.post('/api/answer',{'stage':4,'answer':'PENDIENTE'}).status_code,409)
     def test_word_banks_and_circuits(self):
         for team in range(1,6):
             self.assertEqual(str((((2|3)&(~(2&3)&15))^team)),game.CIRCUITS[team-1])

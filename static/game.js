@@ -38,7 +38,7 @@ $('a.event-lockup').addEventListener('click',e=>{if(e.ctrlKey||e.metaKey||e.shif
 $('#begin').onclick=()=>transition(()=>{editingName=false;$('#team').disabled=false;show('identify');$('#club-name').focus();});
 $('#edit-club-name').onclick=()=>transition(()=>{editingName=true;$('#club-name').value=baseText(mission.club_name);$('#team').value=String(mission.team);$('#team').disabled=true;show('identify');$('#club-name').focus();});
 $('#team-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;$('#team-error').textContent='';try{const data=await api(editingName?'/api/mission/name':'/api/start',{team:Number($('#team').value),club_name:$('#club-name').value.trim()});mission=data.mission;await transition(renderMission);}catch(err){$('#team-error').textContent=err.message;}finally{btn.disabled=false;}};
-function tick(){if(!mission||mission.finished)return;const seconds=Math.max(0,Math.floor(Date.now()/1000-mission.started));$('#timer').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
+function tick(){if(!mission||mission.finished)return;const seconds=mission.started?Math.max(0,Math.floor(Date.now()/1000-mission.started)):0;$('#timer').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
 function resource(html){$('#resource').innerHTML=html;}
 function stopSignal(){if(signalAbort)signalAbort.abort();signalAbort=null;$('#lamp')?.classList.remove('lit');}
 async function startSignal(){
@@ -57,12 +57,31 @@ function cleanAnswer(value){
 function normalizeInput(e){if(e.isComposing)return;const input=e.target;const caret=input.selectionStart;const prefix=cleanAnswer(input.value.slice(0,caret));input.value=cleanAnswer(input.value);if(caret!==null)input.setSelectionRange(prefix.length,prefix.length);}
 $('#answer').addEventListener('input',normalizeInput);$('#answer').addEventListener('compositionend',normalizeInput);
 $('#club-name').addEventListener('input',e=>{if(!e.isComposing)e.target.value=baseText(e.target.value);});
+function showNotice(title,lines,button='Entendido →',action=null){
+ const dialog=$('#notice-dialog');$('#notice-title').textContent=title;$('#notice-body').replaceChildren();
+ for(const line of lines){const p=document.createElement('p');p.textContent=line;$('#notice-body').append(p);}
+ $('#notice-error').textContent='';const confirm=$('#notice-confirm');confirm.textContent=button;
+ dialog.oncancel=e=>{if(action)e.preventDefault();};
+ confirm.onclick=async()=>{confirm.disabled=true;try{if(action)await action();dialog.close();}catch(err){$('#notice-error').textContent=err.message;}finally{confirm.disabled=false;}};
+ if(!dialog.open)dialog.showModal();
+}
+function showClassroom(){showNotice('Destino del reto 6',[mission.classroom,'Busca allí la carta del reto 6.']);}
+function showMorse(){
+ showNotice('Morse: números',['Punto: señal corta. Raya: señal larga.']);
+ const table=document.createElement('div');table.className='morse-reference';
+ ['-----','·----','··---','···--','····-','·····','-····','--···','---··','----·'].forEach((pattern,i)=>{const cell=document.createElement('div');cell.textContent=i+'  '+pattern;table.append(cell);});$('#notice-body').append(table);
+}
 function renderMission(){
  if(mission.finished){show('finish');$('#finish-note').textContent='Desafío finalizado.';clearInterval(timerInterval);return;}
+ if(mission.awaiting_start){
+  show('challenge');$('#answer-form').hidden=true;resource('');$('#challenge-title').textContent='Primer reto resuelto';$('#question').textContent='';$('#challenge-help').hidden=true;$('#team-label').textContent=mission.club_name;$('#assigned-team').textContent='Equipo '+mission.team;$('#stage-label').textContent='01 / 10';$('#stage-kind').textContent='';$('#progress-fill').style.width='10%';$('#feedback').textContent='';clearInterval(timerInterval);tick();
+  showNotice('¡Primer reto resuelto!',[mission.first_destination+'.','Busca los sobres en ese lugar.','Al pulsar «Comenzar reto 2» empieza a contar tu tiempo.'],'Comenzar reto 2 →',async()=>{const data=await api('/api/mission/begin-timed',{});mission=data.mission;renderMission();});return;
+ }
  const n=mission.stage;show('challenge');$('#team-label').textContent=mission.club_name;$('#assigned-team').textContent='Equipo '+mission.team;$('#stage-label').textContent=String(n+1).padStart(2,'0')+' / 10';$('#stage-kind').textContent='';$('#progress-fill').style.width=(n/10*100)+'%';$('#challenge-title').textContent=mission.title;$('#question').textContent=mission.question;
  const input=$('#answer'),length=numericLength(n);input.maxLength=length|| (n===4?60:300);input.inputMode=length?'numeric':'text';input.className=length===1?'digit-answer':length===3?'signal-answer':'text-answer';input.placeholder='';input.value=cleanAnswer(draftAnswer());
  if(length)input.setAttribute('pattern',length===1?'[0-9]':'[0-9]{3}');else input.removeAttribute('pattern');
  $('#feedback').textContent='';$('#feedback').dataset.error='false';$('#monitor').hidden=true;$('#answer-form').hidden=false;resource('');
+ const help=$('#challenge-help');help.hidden=![5,8].includes(n);help.textContent=n===8?'ⓘ Tabla Morse':'ⓘ Ver aula';help.setAttribute('aria-label',n===8?'Ver tabla Morse de números':'Recordar aula asignada');help.onclick=n===8?showMorse:showClassroom;
  if(n===4){
   resource('<div class="zoom-toolbar"><button class="secondary" type="button" id="zoom-out" aria-label="Reducir imagen">−</button><span id="zoom-label">100%</span><button class="secondary" type="button" id="zoom-in" aria-label="Ampliar imagen">+</button></div><div class="photo-viewport"><img id="photo" alt="Fotografía asignada al equipo"></div><p class="pending-tag" id="photo-status"></p>');
   $('#photo').src=mission.photo.url;let zoom=1;const applyZoom=()=>{$('#photo').style.width=(zoom*100)+'%';$('#zoom-label').textContent=Math.round(zoom*100)+'%';};$('#zoom-in').onclick=()=>{zoom=Math.min(4,zoom+.25);applyZoom();};$('#zoom-out').onclick=()=>{zoom=Math.max(1,zoom-.25);applyZoom();};applyZoom();$('#photo-status').textContent=mission.photo.pending?'Fotografía pendiente.':'';
@@ -72,7 +91,7 @@ function renderMission(){
  clearInterval(timerInterval);tick();timerInterval=setInterval(tick,500);input.focus({preventScroll:true});
 }
 function confirmAnswer(value){return new Promise(resolve=>{const dialog=$('#confirm-dialog');$('#confirm-text').textContent=mission.confirmation.replace('{respuesta}',value);dialog.returnValue='cancel';dialog.addEventListener('close',()=>resolve(dialog.returnValue==='confirm'),{once:true});dialog.showModal();});}
-$('#answer-form').onsubmit=async e=>{e.preventDefault();const value=cleanAnswer($('#answer').value).trim();$('#answer').value=value;if(!value||switching)return;const btn=$('#answer-submit');btn.disabled=true;try{if(!await confirmAnswer(value))return;const data=await api('/api/answer',{answer:value,stage:mission.stage});$('#feedback').textContent=data.message;$('#feedback').dataset.error=String(!data.accepted);if(data.accepted){try{sessionStorage.removeItem('codigo-draft');}catch{}if(mission.stage===4&&data.message.includes('Dirígete')){resource('<div class="notice" id="destination"></div>');$('#destination').textContent=data.message;await sleep(2200);}mission=data.mission;await transition(renderMission);}}catch(err){$('#feedback').textContent=err.message;$('#feedback').dataset.error='true';}finally{btn.disabled=false;}};
+$('#answer-form').onsubmit=async e=>{e.preventDefault();const value=cleanAnswer($('#answer').value).trim();$('#answer').value=value;if(!value||switching)return;const btn=$('#answer-submit');btn.disabled=true;try{if(!await confirmAnswer(value))return;const data=await api('/api/answer',{answer:value,stage:mission.stage});$('#feedback').textContent=data.message;$('#feedback').dataset.error=String(!data.accepted);if(data.accepted){try{sessionStorage.removeItem('codigo-draft');}catch{}const showRoom=mission.stage===4;mission=data.mission;await transition(renderMission);if(showRoom)showClassroom();}}catch(err){$('#feedback').textContent=err.message;$('#feedback').dataset.error='true';}finally{btn.disabled=false;}};
 $('#monitor').onclick=()=>{$('#password-dialog').showModal();$('#monitor-password').focus();};$('#monitor-cancel').onclick=()=>{$('#password-dialog').close();$('#monitor-password').value='';};
 $('#monitor-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{const data=await api('/api/monitor/advance-photo',{password:$('#monitor-password').value});$('#monitor-password').value='';$('#password-dialog').close();mission=data.mission;await transition(renderMission);}catch(err){$('#monitor-error').textContent=err.message;}finally{btn.disabled=false;}};
 document.querySelectorAll('[data-transition]').forEach(link=>link.addEventListener('click',e=>{if(e.ctrlKey||e.metaKey||e.shiftKey)return;e.preventDefault();transition(()=>{location.href=link.href;});}));

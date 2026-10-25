@@ -68,3 +68,9 @@ Una misión en curso permite editar el nombre del gremio desde el inicio sin rei
 Los inputs de respuesta convierten automáticamente el texto a mayúsculas sin tildes y lo centran. Los numéricos filtran letras, signos y exceso de cifras. Si una misión previa había avanzado con el primer reto incorrecto, se pide corregirlo y luego se recuperan las respuestas posteriores sin borrarlas. El layout de PC se compacta desde 900 px sin reducir globalmente el zoom ni cambiar la escala móvil. Se eliminó el banner desplegable Clubs Royale; los tres logos quedan al pie del contenido.
 
 Los paneles de PC de 600–899 px y hasta 800 px de alto tienen una variante compacta adicional; los teléfonos de menos de 600 px conservan su escala.
+
+## Inicio del tiempo y destinos
+
+El reto 1 no consume tiempo. Al resolverlo se muestra dónde buscar los sobres; «Comenzar reto 2» inicia el reloj en el servidor una sola vez. Recargar antes de confirmar conserva el aviso y el reloj detenido. Las misiones que ya estaban avanzadas mantienen su inicio anterior.
+
+Mientras faltan las fotos y aulas reales, se sortean cinco aulas provisionales distintas (101, 204, 305, 402, 503), una por equipo. La asignación se guarda en PostgreSQL y sobrevive a reinicios. Una `destination` configurada en `event_config.json` tiene prioridad. Al completar el reto 5 aparece el destino; en el reto 6 se puede reabrir con «Ver aula». El reto 9 ofrece una tabla de números Morse mediante su botón de información. No se permite volver a responder etapas anteriores.
