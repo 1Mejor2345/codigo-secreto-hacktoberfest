@@ -23,7 +23,7 @@ Juego educativo de **Hacktoberfest × IEEE HKN Nu Zeta, ESPOL**, para cinco equi
 5. **Dilo con emojis:** interpretar el refrán de la pantalla asignada al equipo y escribirlo completo. Al enviarlo, esté bien o mal, se pasa directamente al reto 6, sin confirmación emergente ni aviso de entrega presencial.
 6. **Encuentra las diferencias:** responder usando el material físico.
 7. **La transmisión interceptada:** resolver el protocolo NEXO con la grabación y el material físico.
-8. **Transmisión de doble cifrado:** recuperar el mensaje de audio y responder con el dígito solicitado.
+8. **Transmisión de doble cifrado:** recuperar el mensaje de audio y responder con el dígito solicitado. La web muestra la pista «¿Desplazamiento = -3?» y aclara que la palabra obtenida tiene sentido en español. El PDF impreso se conserva sin cambios.
 9. **Señales intermitentes:** interpretar tres cifras Morse. El foco reproduce la secuencia una sola vez por clic; después queda apagado y aparece «Volver a repetir». Hay una tabla de conversión consultable.
 10. **Mensaje final:** combinar respuestas anteriores con el banco de palabras del equipo. Es necesario acertar para finalizar.
 

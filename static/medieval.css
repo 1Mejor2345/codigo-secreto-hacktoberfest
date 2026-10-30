@@ -37,3 +37,5 @@ html{background:#1a1612;font-family:Georgia,'Times New Roman',serif}body{backgro
 .reading-puzzle{max-width:680px;margin:18px auto;padding:18px 22px;border:1px solid #947138;border-radius:12px;background:#2b211699}.reading-intro{font-style:italic;line-height:1.7}.reading-puzzle ol{text-align:left;padding-left:24px;line-height:1.8}.reading-puzzle li{margin:7px 0}#notice-body p{overflow-wrap:anywhere}@media(max-width:600px){.reading-puzzle{padding:14px}.reading-puzzle ol{padding-left:20px;font-size:15px}#notice-confirm{width:100%;white-space:normal}}
 
 .admin-tools .danger{color:#f4b6a8;border-color:#a65e4b}.admin-tools .danger:hover{background:#632b24}#delete-dialog{width:min(480px,calc(100vw - 32px));max-height:85dvh;overflow:auto}#delete-dialog .dialog-actions{flex-wrap:wrap}#delete-confirm{white-space:normal}
+
+.cipher-hint{max-width:580px;margin:18px auto 24px;text-align:center}.cipher-hint p{margin:8px 0;line-height:1.6}.cipher-hint .eyebrow{margin-bottom:10px}.cipher-hint p:nth-child(2){font-size:clamp(20px,3vw,26px);color:#e6c37e}
