@@ -78,7 +78,7 @@ Abrir **http://localhost:5001/**. No sobrescribir un `.env` existente al actuali
 
 ## Códigos del primer reto
 
-Cada club tiene cinco instrucciones sin palabras destacadas. La web muestra su valor x y sus cinco líneas. El código se reconstruye tomando la palabra x de cada línea, en orden:
+Cada club tiene cinco instrucciones sin palabras destacadas. Las instrucciones y el valor x se entregan en las hojas de los participantes. La web solo pide ingresar la frase descifrada. El código se reconstruye tomando la palabra x de cada línea, en orden:
 
 - Club 1, x = 4: HALCÓN NOCTURNO VIGILA TRES FAROS.
 - Club 2, x = 5: SIETE LUCIÉRNAGAS ILUMINAN PUENTE ROJO.

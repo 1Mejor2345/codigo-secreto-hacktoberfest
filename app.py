@@ -14,14 +14,6 @@ DB_PATH = os.environ.get('DB_PATH', str(ROOT/'instance'/'game.sqlite3'))
 DATABASE_URL = os.environ.get('DATABASE_URL')
 LEGACY_FIRST_CODES = ['Los sobres están bajo el escritorio central','Busquen los sobres detrás de la laptop','Revisen siempre bajo la mesa del proyector','Busquen todos los sobres bajo las sillas','Los sobres están junto a la puerta']
 LOCATIONS = ['HALCÓN NOCTURNO VIGILA TRES FAROS','SIETE LUCIÉRNAGAS ILUMINAN PUENTE ROJO','LUNA PLATEADA CRUZA RÍO PROFUNDO','ZORRO VELOZ GUARDA NUEVE LLAVES','ÁRBOL ANTIGUO ESCONDE CUATRO ESTRELLAS']
-READING_POSITIONS = [4,5,3,6,2]
-READING_LINES = [
-    ['Observen como un halcón cada pista.','Incluso en modo nocturno, mantengan la sonrisa.','Un buen líder vigila el tiempo.','Revisen cada respuesta tres veces.','Las buenas ideas, faros del equipo, merecen respeto.'],
-    ['Si algo falla, respiren siete veces.','Pequeñas ideas brillan como luciérnagas en la noche.','Las buenas preguntas siempre iluminan el camino.','Un buen equipo es puente entre ideas.','Si ven un foco rojo, avisen al staff.'],
-    ['Bajo la luna también se programa.','Cada medalla plateada se gana en equipo.','Cada pista cruza información con la siguiente.','Como un río, fluyan sin prisa pero sin pausa.','Un análisis profundo evita errores.'],
-    ['Piensen con astucia, como un zorro.','No siempre gana el equipo veloz, sino el constante.','Cada miembro de este equipo guarda un talento.','Si dudan, cuenten despacio hasta nueve.','Las mejores respuestas se vuelven llaves para avanzar.'],
-    ['Un árbol grande empieza como una semilla.','El antiguo proverbio dice: escuchen primero.','Nada esconde mejor un error que la prisa.','Tengan cuatro cosas presentes: calma, orden, respeto y humor.','Las estrellas guían, pero el equipo decide.']]
-
 CIRCUITS = ['0','3','2','5','4']
 CODES = ['251','372','583','916','635']
 PROVERBS = ['A caballo regalado no se le mira el diente','Cuando el río suena, piedras lleva','Al que madruga, Dios lo ayuda','Más vale pájaro en mano que ciento volando','Perro que ladra no muerde']
@@ -36,7 +28,7 @@ PROVERB_VARIANTS = [
 BANKS = [['ES','LA','CAFE','EQUIPO','INGENIERÍA','CODIGO','SECRETO','NEXO','TIEMPO'],['CAFE','ES','LA','EQUIPO','CODIGO','SECRETO','INGENIERÍA','NEXO','TIEMPO'],['CAFE','CODIGO','ES','EQUIPO','LA','SECRETO','NEXO','INGENIERÍA','TIEMPO'],['INGENIERÍA','CAFE','CODIGO','EQUIPO','SECRETO','ES','NEXO','TIEMPO','LA'],['CAFE','CODIGO','INGENIERÍA','EQUIPO','ES','LA','SECRETO','NEXO','TIEMPO']]
 TITLES = ['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Dilo con emojis','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final']
 QUESTIONS = [
-    '¿Cuál es el código oculto de tu club?',
+    'Ingresa la frase que descifraste en la hoja de tu club.',
     '¿Cuál es el dígito central de la contraseña de tres cifras?',
     '¿Qué número de un solo dígito se obtiene al ejecutar correctamente el programa?',
     '¿Cuál es el resultado decimal de la salida del circuito lógico?',
@@ -201,8 +193,6 @@ def public(row):
     value=dict(team=team,club_name=row['club_name'] or f'Equipo {team}',stage=stage,started=row['timed_started'],awaiting_start=stage==1 and row['timed_started'] is None,finished=bool(row['finished']),answers=json.loads(row['answers']))
     if stage<10:
         value.update(title=f'Reto {stage+1} — {TITLES[stage]}',question=QUESTIONS[stage],confirmation=CONFIRMATIONS[stage])
-    if stage==0:
-        value['reading']=dict(position=READING_POSITIONS[team-1],lines=READING_LINES[team-1])
     if 1<=stage<10:
         value['first_receipt']=dict(message='Mensaje descifrado.',instruction='Acérquense a Gabriel Vallejo y susurren el código al oído para recibir su sobre.',code=first_target(row))
     if stage==4:
