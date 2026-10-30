@@ -16,12 +16,12 @@ Juego educativo de **Hacktoberfest × IEEE HKN Nu Zeta, ESPOL**, para cinco equi
 
 ## Recorrido del juego
 
-1. **Cuenta bien, lee mejor:** descifrar el enunciado que indica dónde buscar los sobres. Es necesario acertar para avanzar. El aviso de ubicación recuerda anotar las respuestas; «Comenzar reto 2» inicia el tiempo.
-2. **La contraseña imposible:** introducir el dígito central de la contraseña.
+1. **Cuenta bien, lee mejor:** extraer la palabra x de cada una de las cinco instrucciones del club y escribir el código de cinco palabras. Es necesario acertar; se toleran hasta dos caracteres de diferencia tras normalizar. El comprobante «Mensaje descifrado» muestra el código correcto y pide susurrárselo al oído a Gabriel Vallejo. «Ya recibimos el sobre · Comenzar reto 2» inicia el tiempo.
+2. **La contraseña imposible:** introducir el dígito central de la contraseña. «Ver código validado» vuelve a mostrar la indicación de Gabriel Vallejo y el código del primer reto, sin reiniciar el tiempo.
 3. **El algoritmo corrompido:** obtener el resultado de un programa reconstruido.
 4. **Compuertas en serie:** calcular la salida decimal del circuito del equipo.
-5. **Dilo con emojis:** interpretar el refrán de la pantalla asignada al equipo y escribirlo completo. Se permite avanzar tanto si acierta como si falla. Antes de abrir el reto 6 se muestra el refrán correcto y la instrucción de acercarse a Gabriel Vallejo para decírselo.
-6. **Encuentra las diferencias:** responder usando el material físico. «Ver indicación» permite consultar de nuevo la instrucción y el refrán del paso anterior.
+5. **Dilo con emojis:** interpretar el refrán de la pantalla asignada al equipo y escribirlo completo. Al enviarlo, esté bien o mal, se pasa directamente al reto 6, sin confirmación emergente ni aviso de entrega presencial.
+6. **Encuentra las diferencias:** responder usando el material físico.
 7. **La transmisión interceptada:** resolver el protocolo NEXO con la grabación y el material físico.
 8. **Transmisión de doble cifrado:** recuperar el mensaje de audio y responder con el dígito solicitado.
 9. **Señales intermitentes:** interpretar tres cifras Morse. El foco reproduce la secuencia una sola vez por clic; después queda apagado y aparece «Volver a repetir». Hay una tabla de conversión consultable.
@@ -32,7 +32,7 @@ Las grabaciones y los materiales físicos de los retos se consultan según las f
 ## Reglas de respuestas y puntuación
 
 - El primer reto y el mensaje final requieren una respuesta correcta.
-- Para esas frases se ignoran mayúsculas, tildes y puntuación y se normalizan los espacios.
+- Para esas frases se ignoran mayúsculas, tildes y puntuación y se normalizan los espacios. El código del primer reto admite hasta dos caracteres de diferencia; el mensaje final conserva su validación anterior.
 - Los retos numéricos permiten continuar con una respuesta incorrecta, pero exigen el formato indicado: un dígito, salvo Morse, que requiere tres cifras.
 - No se pueden volver a responder retos anteriores ni saltarse etapas.
 - Los campos de texto convierten la entrada a mayúsculas sin tildes; los numéricos filtran caracteres y longitud.
@@ -41,7 +41,7 @@ Las grabaciones y los materiales físicos de los retos se consultan según las f
 
 ## Tiempo, recarga y conexión
 
-El primer reto no consume tiempo. El inicio queda guardado en el servidor al pulsar «Comenzar reto 2» y no se reinicia al recargar. Una vez iniciado, el tiempo continúa aunque se vuelva a la portada o se pierda la conexión.
+El primer reto no consume tiempo. El inicio queda guardado en el servidor al pulsar «Ya recibimos el sobre · Comenzar reto 2» y no se reinicia al recargar. Una vez iniciado, el tiempo continúa aunque se vuelva a la portada o se pierda la conexión.
 
 Cada respuesta aceptada y el avance se guardan en la base de datos. Al recargar con conexión, la portada ofrece «Continuar misión». La recuperación requiere el mismo navegador y conservar su cookie de sesión; no hay un código para transferir la misión a otro dispositivo.
 
@@ -76,6 +76,18 @@ Abrir **http://localhost:5001/**. No sobrescribir un `.env` existente al actuali
 
 `.env`, la configuración real de las fotos y las bases SQLite están excluidos de Git. Las credenciales de producción se mantienen en las variables del servicio, no en el README.
 
+## Códigos del primer reto
+
+Cada club tiene cinco instrucciones sin palabras destacadas. La web muestra su valor x y sus cinco líneas. El código se reconstruye tomando la palabra x de cada línea, en orden:
+
+- Club 1, x = 4: HALCÓN NOCTURNO VIGILA TRES FAROS.
+- Club 2, x = 5: SIETE LUCIÉRNAGAS ILUMINAN PUENTE ROJO.
+- Club 3, x = 3: LUNA PLATEADA CRUZA RÍO PROFUNDO.
+- Club 4, x = 6: ZORRO VELOZ GUARDA NUEVE LLAVES.
+- Club 5, x = 2: ÁRBOL ANTIGUO ESCONDE CUATRO ESTRELLAS.
+
+No depende de ubicaciones del recinto. Tras acertar se muestra un comprobante con el código canónico para que el staff lo verifique. La pantalla pide acercarse a Gabriel Vallejo y susurrar el código al oído. El equipo debe confirmar el inicio solo después de recibir su sobre; esta confirmación la realiza el equipo, no es una autorización remota del staff. Hasta ese momento el tiempo permanece en cero. En el reto 2 se puede reabrir el comprobante. Las misiones de versiones anteriores que ya resolvieron su primer reto conservan su avance y su referencia original.
+
 ## Pantallas del reto 5
 
 La pantalla se asigna según la salida de circuito correspondiente al equipo, igual que en la modalidad anterior:
@@ -86,9 +98,9 @@ La pantalla se asigna según la salida de circuito correspondiente al equipo, ig
 - Equipo 4 → Pantalla 5: 🐦 ✋ ⚖️ 💯 🐦 ☁️
 - Equipo 5 → Pantalla 4: 🐕 📢 🚫 🦷
 
-El participante escribe un refrán completo; la pantalla no revela su solución antes de enviar la respuesta. El aviso posterior muestra la frase de referencia correspondiente, aunque la respuesta enviada sea incorrecta. Solo después de confirmar ese aviso se abre el reto 6. Allí puede volver a consultarse con «Ver indicación», incluso tras recargar.
+El participante escribe un refrán completo y pasa directamente al reto 6. No se muestra la solución ni hay avisos emergentes en este paso. La respuesta se evalúa para el puntaje y puede revisarse por organización al finalizar.
 
-La modalidad actual ya no utiliza fotografías, claves de aula ni aulas provisionales. `event_config.example.json` se conserva como referencia de la versión anterior; no configura este reto. Los cambios pendientes del reto 1 todavía no forman parte de esta actualización.
+La modalidad actual ya no utiliza fotografías, claves de aula ni aulas provisionales. `event_config.example.json` se conserva como referencia de la versión anterior; no configura este reto.
 
 ## Leaderboard y organización
 

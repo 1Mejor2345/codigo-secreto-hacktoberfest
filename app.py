@@ -12,7 +12,16 @@ app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', SESSION_COOKIE_SECURE=os.environ.get('RENDER')=='true', MAX_CONTENT_LENGTH=16384)
 DB_PATH = os.environ.get('DB_PATH', str(ROOT/'instance'/'game.sqlite3'))
 DATABASE_URL = os.environ.get('DATABASE_URL')
-LOCATIONS = ['Los sobres están bajo el escritorio central','Busquen los sobres detrás de la laptop','Revisen siempre bajo la mesa del proyector','Busquen todos los sobres bajo las sillas','Los sobres están junto a la puerta']
+LEGACY_FIRST_CODES = ['Los sobres están bajo el escritorio central','Busquen los sobres detrás de la laptop','Revisen siempre bajo la mesa del proyector','Busquen todos los sobres bajo las sillas','Los sobres están junto a la puerta']
+LOCATIONS = ['HALCÓN NOCTURNO VIGILA TRES FAROS','SIETE LUCIÉRNAGAS ILUMINAN PUENTE ROJO','LUNA PLATEADA CRUZA RÍO PROFUNDO','ZORRO VELOZ GUARDA NUEVE LLAVES','ÁRBOL ANTIGUO ESCONDE CUATRO ESTRELLAS']
+READING_POSITIONS = [4,5,3,6,2]
+READING_LINES = [
+    ['Observen como un halcón cada pista.','Incluso en modo nocturno, mantengan la sonrisa.','Un buen líder vigila el tiempo.','Revisen cada respuesta tres veces.','Las buenas ideas, faros del equipo, merecen respeto.'],
+    ['Si algo falla, respiren siete veces.','Pequeñas ideas brillan como luciérnagas en la noche.','Las buenas preguntas siempre iluminan el camino.','Un buen equipo es puente entre ideas.','Si ven un foco rojo, avisen al staff.'],
+    ['Bajo la luna también se programa.','Cada medalla plateada se gana en equipo.','Cada pista cruza información con la siguiente.','Como un río, fluyan sin prisa pero sin pausa.','Un análisis profundo evita errores.'],
+    ['Piensen con astucia, como un zorro.','No siempre gana el equipo veloz, sino el constante.','Cada miembro de este equipo guarda un talento.','Si dudan, cuenten despacio hasta nueve.','Las mejores respuestas se vuelven llaves para avanzar.'],
+    ['Un árbol grande empieza como una semilla.','El antiguo proverbio dice: escuchen primero.','Nada esconde mejor un error que la prisa.','Tengan cuatro cosas presentes: calma, orden, respeto y humor.','Las estrellas guían, pero el equipo decide.']]
+
 CIRCUITS = ['0','3','2','5','4']
 CODES = ['251','372','583','916','635']
 PROVERBS = ['A caballo regalado no se le mira el diente','Cuando el río suena, piedras lleva','Al que madruga, Dios lo ayuda','Más vale pájaro en mano que ciento volando','Perro que ladra no muerde']
@@ -27,7 +36,7 @@ PROVERB_VARIANTS = [
 BANKS = [['ES','LA','CAFE','EQUIPO','INGENIERÍA','CODIGO','SECRETO','NEXO','TIEMPO'],['CAFE','ES','LA','EQUIPO','CODIGO','SECRETO','INGENIERÍA','NEXO','TIEMPO'],['CAFE','CODIGO','ES','EQUIPO','LA','SECRETO','NEXO','INGENIERÍA','TIEMPO'],['INGENIERÍA','CAFE','CODIGO','EQUIPO','SECRETO','ES','NEXO','TIEMPO','LA'],['CAFE','CODIGO','INGENIERÍA','EQUIPO','ES','LA','SECRETO','NEXO','TIEMPO']]
 TITLES = ['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Dilo con emojis','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final']
 QUESTIONS = [
-    'El primer reto puede parecer confuso, pero si lees bien tu ficha de normas lo entenderás.\n¿Cuál es tu enunciado correcto?',
+    '¿Cuál es el código oculto de tu club?',
     '¿Cuál es el dígito central de la contraseña de tres cifras?',
     '¿Qué número de un solo dígito se obtiene al ejecutar correctamente el programa?',
     '¿Cuál es el resultado decimal de la salida del circuito lógico?',
@@ -38,7 +47,7 @@ QUESTIONS = [
     '¿Qué código de tres cifras se obtiene al interpretar las señales luminosas?',
     '¿Cuál es el mensaje final formado al combinar las palabras correspondientes a los números obtenidos en los retos anteriores?']
 CONFIRMATIONS = [
-    '¿Confirmas que «{respuesta}» es tu enunciado correcto?',
+    '¿Confirmas que «{respuesta}» es tu código oculto?',
     '¿Confirmas que «{respuesta}» es el dígito central de la contraseña?',
     '¿Confirmas que el programa reconstruido produce «{respuesta}»?',
     '¿Confirmas que la salida del circuito es «{respuesta}»?',
@@ -54,6 +63,21 @@ NUMERIC_LENGTHS = {1:1, 2:1, 3:1, 5:1, 6:1, 7:1, 8:3}
 def normalize(value):
     text=unicodedata.normalize('NFD',value.strip().casefold())
     return ' '.join(''.join(c if c.isalnum() or c.isspace() else ' ' for c in text if unicodedata.category(c)!='Mn').split())
+
+def within_two_typos(value, target):
+    # Bounded Levenshtein distance: substitutions, omissions and extra letters.
+    if abs(len(value)-len(target))>2:
+        return False
+    previous=list(range(len(target)+1))
+    for i,letter in enumerate(value,1):
+        current=[i]
+        for j,expected_letter in enumerate(target,1):
+            current.append(min(current[-1]+1,previous[j]+1,previous[j-1]+(letter!=expected_letter)))
+        if min(current)>2:
+            return False
+        previous=current
+    return previous[-1]<=2
+
 
 @contextmanager
 def connection():
@@ -160,19 +184,27 @@ def health():
         sql(db,'SELECT 1')
     return jsonify(status='ok',storage='postgresql' if DATABASE_URL else 'sqlite')
 
+def first_target(row):
+    answers=json.loads(row['answers'])
+    old=LEGACY_FIRST_CODES[row['team']-1]
+    if row['stage']>0 and answers and normalize(answers[0])==normalize(old):
+        return old
+    return LOCATIONS[row['team']-1]
+
+
 def needs_first_correction(row):
     answers=json.loads(row['answers'])
-    return not row['finished'] and row['stage']>0 and bool(answers) and not answer_matches(answers[0],LOCATIONS[row['team']-1],0)
+    return not row['finished'] and row['stage']>0 and bool(answers) and not answer_matches(answers[0],first_target(row),0)
 
 def public(row):
     team,stage=row['team'],0 if needs_first_correction(row) else row['stage']
     value=dict(team=team,club_name=row['club_name'] or f'Equipo {team}',stage=stage,started=row['timed_started'],awaiting_start=stage==1 and row['timed_started'] is None,finished=bool(row['finished']),answers=json.loads(row['answers']))
     if stage<10:
         value.update(title=f'Reto {stage+1} — {TITLES[stage]}',question=QUESTIONS[stage],confirmation=CONFIRMATIONS[stage])
-    if stage==1 and row['timed_started'] is None:
-        value['first_destination']=LOCATIONS[team-1]
-    if 5<=stage<10:
-        value['handoff']=dict(instruction='Acércate a Gabriel Vallejo y dile esta frase:',phrase=PROVERBS[team-1])
+    if stage==0:
+        value['reading']=dict(position=READING_POSITIONS[team-1],lines=READING_LINES[team-1])
+    if 1<=stage<10:
+        value['first_receipt']=dict(message='Mensaje descifrado.',instruction='Acérquense a Gabriel Vallejo y susurren el código al oído para recibir su sobre.',code=first_target(row))
     if stage==4:
         value['emoji_screen']=dict(number=CIRCUITS[team-1],emojis=EMOJIS[team-1])
     if stage==8:
@@ -240,6 +272,8 @@ def answer_matches(value, target, stage):
         return None
     if stage==4 and value.startswith('PENDIENTE · habilitado por monitor'):
         return None
+    if stage==0 and target in LOCATIONS:
+        return within_two_typos(normalize(value),normalize(target))
     if stage==4 and target in PROVERBS:
         index=PROVERBS.index(target)
         return normalize(value) in {normalize(v) for v in [target]+PROVERB_VARIANTS[index]}
@@ -277,6 +311,8 @@ def answer():
         if stage>0 and row['timed_started'] is None:
             return jsonify(error='Confirma el inicio del tiempo para continuar.'),409
         targets=expected(team)
+        if stage>0:
+            targets[0]=first_target(row)
         correct=answer_matches(value,targets[stage],stage)
         if stage in (0,9) and not correct:
             attempts=json.loads(row['attempts'])+[dict(stage=stage,correct=False)]
