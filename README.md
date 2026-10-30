@@ -20,8 +20,8 @@ Juego educativo de **Hacktoberfest × IEEE HKN Nu Zeta, ESPOL**, para cinco equi
 2. **La contraseña imposible:** introducir el dígito central de la contraseña.
 3. **El algoritmo corrompido:** obtener el resultado de un programa reconstruido.
 4. **Compuertas en serie:** calcular la salida decimal del circuito del equipo.
-5. **Haz zoom:** observar la fotografía asignada e introducir su código. Al confirmar aparece el aula de destino sobre esa misma pantalla; el reto 6 se abre al pulsar «Continuar al reto 6».
-6. **Encuentra las diferencias:** responder usando la carta recogida en el aula. «Ver aula» permite consultar de nuevo el destino.
+5. **Dilo con emojis:** interpretar el refrán de la pantalla asignada al equipo y escribirlo completo. Se permite avanzar tanto si acierta como si falla. Antes de abrir el reto 6 se muestra el refrán correcto y la instrucción de acercarse a Gabriel Vallejo para decírselo.
+6. **Encuentra las diferencias:** responder usando el material físico. «Ver indicación» permite consultar de nuevo la instrucción y el refrán del paso anterior.
 7. **La transmisión interceptada:** resolver el protocolo NEXO con la grabación y el material físico.
 8. **Transmisión de doble cifrado:** recuperar el mensaje de audio y responder con el dígito solicitado.
 9. **Señales intermitentes:** interpretar tres cifras Morse. El foco reproduce la secuencia una sola vez por clic; después queda apagado y aparece «Volver a repetir». Hay una tabla de conversión consultable.
@@ -36,7 +36,7 @@ Las grabaciones y los materiales físicos de los retos se consultan según las f
 - Los retos numéricos permiten continuar con una respuesta incorrecta, pero exigen el formato indicado: un dígito, salvo Morse, que requiere tres cifras.
 - No se pueden volver a responder retos anteriores ni saltarse etapas.
 - Los campos de texto convierten la entrada a mayúsculas sin tildes; los numéricos filtran caracteres y longitud.
-- Al finalizar, el servidor calcula los aciertos con las claves correspondientes al equipo. Una foto sin clave configurada queda pendiente y no suma acierto.
+- Al finalizar, el servidor calcula los aciertos con las claves correspondientes al equipo. En el reto 5 se ignoran tildes, puntuación, mayúsculas y espacios repetidos. Se aceptan variantes previstas, como «Dios le ayuda» y «Dios lo ayuda», o «cien» y «ciento volando». No se usa coincidencia aproximada indiscriminada.
 - La clasificación ordena por más aciertos y, en empate, por menor tiempo.
 
 ## Tiempo, recarga y conexión
@@ -76,21 +76,19 @@ Abrir **http://localhost:5001/**. No sobrescribir un `.env` existente al actuali
 
 `.env`, la configuración real de las fotos y las bases SQLite están excluidos de Git. Las credenciales de producción se mantienen en las variables del servicio, no en el README.
 
-## Fotos y aulas del reto 5
+## Pantallas del reto 5
 
-Las fotos y los códigos reales siguen pendientes de preparación. Mientras tanto, aparece una imagen genérica y se puede introducir `PENDIENTE` para avanzar sin sumar acierto por ese reto.
+La pantalla se asigna según la salida de circuito correspondiente al equipo, igual que en la modalidad anterior:
 
-Cada equipo recibe un aula provisional diferente, sorteada entre **101, 204, 305, 402 y 503**. La asignación se guarda en la base de datos y se conserva entre reinicios. Los destinos se muestran como provisionales.
+- Equipo 1 → Pantalla 0: 🐴 🎁 🚫 👀 🦷
+- Equipo 2 → Pantalla 3: 🏞️ 🔊 🪨
+- Equipo 3 → Pantalla 2: 🐓 🌅 🙏 🤝
+- Equipo 4 → Pantalla 5: 🐦 ✋ ⚖️ 💯 🐦 ☁️
+- Equipo 5 → Pantalla 4: 🐕 📢 🚫 🦷
 
-Para preparar el evento:
+El participante escribe un refrán completo; la pantalla no revela su solución antes de enviar la respuesta. El aviso posterior muestra la frase de referencia correspondiente, aunque la respuesta enviada sea incorrecta. Solo después de confirmar ese aviso se abre el reto 6. Allí puede volver a consultarse con «Ver indicación», incluso tras recargar.
 
-1. Copiar `event_config.example.json` a `event_config.json`.
-2. Completar `url`, `answer` y `destination` para las fotos identificadas como `0`, `3`, `2`, `5` y `4`, correspondientes a los equipos 1–5.
-3. Guardar las claves como cadenas de texto para conservar ceros iniciales.
-4. Publicar las fotografías en una ruta accesible, manteniendo las respuestas fuera de los archivos estáticos.
-5. Asegurar que `event_config.json` esté disponible en el servidor: es un archivo local excluido de Git y no se publica con un simple push.
-
-Una `destination` configurada tiene prioridad sobre el aula provisional. Para que la fotografía se considere lista se requieren los tres campos.
+La modalidad actual ya no utiliza fotografías, claves de aula ni aulas provisionales. `event_config.example.json` se conserva como referencia de la versión anterior; no configura este reto. Los cambios pendientes del reto 1 todavía no forman parte de esta actualización.
 
 ## Leaderboard y organización
 
@@ -98,7 +96,8 @@ La ruta es **`/leaderboard`**; `/admin` redirige allí. También se accede media
 
 - Cada entrada o recarga del leaderboard exige iniciar sesión de nuevo.
 - Se muestra una sola clasificación con el nombre, equipo, aciertos, tiempo y detalle de cada reto.
-- «Comparar respuestas» muestra lo enviado frente a la clave usada al finalizar.
+- «Comparar respuestas» muestra lo enviado frente a la clave usada al finalizar. En cada respuesta incorrecta aparece «Validar como correcta». La organización confirma la revisión, se suma un acierto y se actualiza la clasificación sin sustituir la respuesta original.
+- Las revisiones se guardan en PostgreSQL con su fecha y se distinguen como «Validada por organización». «Deshacer validación» retira el acierto añadido. Repetir la misma petición no duplica puntos; se mantienen los controles de sesión administrativa y CSRF.
 - La versión móvil presenta los mismos registros en tarjetas.
 - Los resultados se actualizan automáticamente cada tres segundos, salvo mientras se consulta una comparación o un diálogo.
 - Borrar un registro exige volver a escribir la contraseña.
@@ -137,7 +136,7 @@ codigo-secreto-web/
 │   ├── event/                   # Identidad visual del evento
 │   ├── sponsors/                # Marcas de la comunidad
 │   └── challenges/              # Recursos gráficos de los retos
-├── event_config.example.json    # Modelo de configuración de fotos
+├── event_config.example.json    # Referencia de la modalidad anterior
 ├── legacy-results.json          # Importación histórica inicial
 ├── requirements.txt             # Dependencias del servidor
 ├── INICIAR_LOCAL.cmd            # Lanzador para Windows
@@ -166,7 +165,7 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4
 
 **Comprobación de salud:** `GET /healthz`. Ejecuta una consulta SQL y devuelve el estado y el tipo de almacenamiento.
 
-Al iniciar, el servidor crea las tablas necesarias y añade las columnas de versiones anteriores sin borrar los resultados. Las tablas principales son `missions`, `submissions` y `app_metadata`.
+Al iniciar, el servidor crea las tablas necesarias y añade las columnas de versiones anteriores sin borrar los resultados. Las tablas principales son `missions`, `submissions` y `app_metadata`. Los resultados nuevos identifican la modalidad de emojis y guardan la clave utilizada. La migración conserva los resultados de fotografía anteriores; las revisiones manuales se almacenan por reto en `manual_reviews`.
 
 Para una instalación nueva en Render, configurar un `SECRET_KEY` estable, la contraseña de organización y `DATABASE_URL` con la conexión PostgreSQL apropiada. No usar SQLite en el almacenamiento efímero del servicio como sustituto de la base de producción. Consultar en el panel las condiciones y la fecha de vencimiento de la base gratuita y exportar los resultados antes de reemplazarla.
 

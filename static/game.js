@@ -1,7 +1,7 @@
 'use strict';
 const $=s=>document.querySelector(s);
 let csrf='', mission=null, currentView='welcome', switching=false, signalAbort=null, timerInterval=null, editingName=false;
-const titles=['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Haz zoom','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final'];
+const titles=['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Dilo con emojis','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final'];
 const kinds=['LECTURA Y BÚSQUEDA','DEDUCCIÓN NUMÉRICA','LÓGICA DE PYTHON','LÓGICA DIGITAL','OBSERVACIÓN DIGITAL','ATENCIÓN VISUAL','ESCUCHA Y RAZONAMIENTO','CRIPTOGRAFÍA Y AUDIO','CÓDIGO MORSE','INTEGRACIÓN DE PISTAS'];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function updateMusic(){
@@ -53,7 +53,7 @@ function cleanAnswer(value){
  const length=numericLength(mission.stage);
  if(length)return value.replace(/[^0-9]/g,'').slice(0,length);
  const base=baseText(value);
- return mission.stage===4?base.replace(/[^A-Z0-9 -]/g,'').slice(0,60):base.replace(/[^A-Z ]/g,' ').replace(/ {2,}/g,' ').slice(0,300);
+ return base.replace(/[^A-Z ]/g,' ').replace(/ {2,}/g,' ').slice(0,300);
 }
 function normalizeInput(e){if(e.isComposing)return;const input=e.target;const caret=input.selectionStart;const prefix=cleanAnswer(input.value.slice(0,caret));input.value=cleanAnswer(input.value);if(caret!==null)input.setSelectionRange(prefix.length,prefix.length);}
 $('#answer').addEventListener('input',normalizeInput);$('#answer').addEventListener('compositionend',normalizeInput);
@@ -66,8 +66,8 @@ function showNotice(title,lines,button='Entendido →',action=null){
  confirm.onclick=async()=>{confirm.disabled=true;try{if(action)await action();dialog.close();}catch(err){$('#notice-error').textContent=err.message;}finally{confirm.disabled=false;}};
  if(!dialog.open)dialog.showModal();
 }
-function confirmClassroom(classroom){return new Promise(resolve=>{const dialog=$('#notice-dialog');dialog.addEventListener('close',resolve,{once:true});showNotice('Destino del reto 6',[classroom,'Busca allí la carta del reto 6.'],'Continuar al reto 6 →',()=>{});});}
-function showClassroom(){showNotice('Destino del reto 6',[mission.classroom,'Busca allí la carta del reto 6.']);}
+function confirmHandoff(handoff){return new Promise(resolve=>{const dialog=$('#notice-dialog');dialog.addEventListener('close',resolve,{once:true});showNotice('Tu siguiente destino',[handoff.instruction,handoff.phrase],'Continuar al reto 6 →',()=>{});});}
+function showHandoff(){showNotice('Tu siguiente destino',[mission.handoff.instruction,mission.handoff.phrase]);}
 function showMorse(){
  showNotice('Morse: números',['Punto: señal corta. Raya: señal larga.']);
  const table=document.createElement('div');table.className='morse-reference';
@@ -80,22 +80,17 @@ function renderMission(){
   showNotice('¡Primer reto resuelto!',[mission.first_destination+'.','Busca los sobres en ese lugar.','Anoten cada respuesta. Lo que hoy parece resuelto podría abrir una puerta más adelante.','Al pulsar «Comenzar reto 2» empieza a contar tu tiempo.'],'Comenzar reto 2 →',async()=>{const data=await api('/api/mission/begin-timed',{});mission=data.mission;renderMission();});return;
  }
  const n=mission.stage;show('challenge');$('#team-label').textContent=mission.club_name;$('#assigned-team').textContent='Equipo '+mission.team;$('#stage-label').textContent=String(n+1).padStart(2,'0')+' / 10';$('#stage-kind').textContent='';$('#progress-fill').style.width=(n/10*100)+'%';$('#challenge-title').textContent=mission.title;$('#question').textContent=mission.question;
- const input=$('#answer'),length=numericLength(n);input.maxLength=length|| (n===4?60:300);input.inputMode=length?'numeric':'text';input.className=length===1?'digit-answer':length===3?'signal-answer':'text-answer';input.placeholder='';input.value=cleanAnswer(draftAnswer());
+ const input=$('#answer'),length=numericLength(n);input.maxLength=length||300;input.inputMode=length?'numeric':'text';input.className=length===1?'digit-answer':length===3?'signal-answer':'text-answer';input.placeholder='';input.value=cleanAnswer(draftAnswer());
  if(length)input.setAttribute('pattern',length===1?'[0-9]':'[0-9]{3}');else input.removeAttribute('pattern');
- $('#feedback').textContent='';$('#feedback').dataset.error='false';$('#monitor').hidden=true;$('#answer-form').hidden=false;resource('');
- const help=$('#challenge-help');help.hidden=![5,8].includes(n);help.textContent=n===8?'ⓘ Tabla Morse':'ⓘ Ver aula';help.setAttribute('aria-label',n===8?'Ver tabla Morse de números':'Recordar aula asignada');help.onclick=n===8?showMorse:showClassroom;
- if(n===4){
-  resource('<div class="zoom-toolbar"><button class="secondary" type="button" id="zoom-out" aria-label="Reducir imagen">−</button><span id="zoom-label">100%</span><button class="secondary" type="button" id="zoom-in" aria-label="Ampliar imagen">+</button></div><div class="photo-viewport"><img id="photo" alt="Fotografía asignada al equipo"></div><p class="pending-tag" id="photo-status"></p>');
-  $('#photo').src=mission.photo.url;let zoom=1;const applyZoom=()=>{$('#photo').style.width=(zoom*100)+'%';$('#zoom-label').textContent=Math.round(zoom*100)+'%';};$('#zoom-in').onclick=()=>{zoom=Math.min(4,zoom+.25);applyZoom();};$('#zoom-out').onclick=()=>{zoom=Math.max(1,zoom-.25);applyZoom();};applyZoom();$('#photo-status').textContent=mission.photo.pending?'Fotografía pendiente.':'';
- }
+ $('#feedback').textContent='';$('#feedback').dataset.error='false';$('#answer-form').hidden=false;resource('');
+ const help=$('#challenge-help');help.hidden=![5,8].includes(n);help.textContent=n===8?'ⓘ Tabla Morse':'ⓘ Ver indicación';help.setAttribute('aria-label',n===8?'Ver tabla Morse de números':'Recordar indicación de Gabriel Vallejo');help.onclick=n===8?showMorse:showHandoff;
+ if(n===4){resource('<div class="emoji-puzzle"><p class="eyebrow" id="screen-number"></p><div class="emoji-sequence" id="emoji-sequence" role="img"></div></div>');$('#screen-number').textContent='Pantalla '+mission.emoji_screen.number;$('#emoji-sequence').textContent=mission.emoji_screen.emojis;$('#emoji-sequence').setAttribute('aria-label','Refrán en emojis: '+mission.emoji_screen.emojis);}
  if(n===8){resource('<div class="signal-stage"><div id="lamp" class="signal-lamp" role="img" aria-label="Señales luminosas Morse"></div></div><button class="secondary" id="signal-play" type="button">Reproducir</button>');$('#signal-play').onclick=()=>{if(signalAbort)stopSignal();else startSignal();};}
  if(n===9){resource('<div class="word-bank" id="words"></div>');mission.words.forEach((word,i)=>{const cell=document.createElement('div'),number=document.createElement('b');number.textContent=String(i+1);cell.append(number,document.createTextNode(word));$('#words').append(cell);});}
  clearInterval(timerInterval);tick();timerInterval=setInterval(tick,500);input.focus({preventScroll:true});
 }
 function confirmAnswer(value){return new Promise(resolve=>{const dialog=$('#confirm-dialog');$('#confirm-text').textContent=mission.confirmation.replace('{respuesta}',value);dialog.returnValue='cancel';dialog.addEventListener('close',()=>resolve(dialog.returnValue==='confirm'),{once:true});dialog.showModal();});}
-$('#answer-form').onsubmit=async e=>{e.preventDefault();const value=cleanAnswer($('#answer').value).trim();$('#answer').value=value;if(!value||switching)return;const btn=$('#answer-submit');btn.disabled=true;try{if(!await confirmAnswer(value))return;const data=await api('/api/answer',{answer:value,stage:mission.stage});$('#feedback').textContent=data.message;$('#feedback').dataset.error=String(!data.accepted);if(data.accepted){try{sessionStorage.removeItem('codigo-draft');}catch{}if(mission.stage===4)await confirmClassroom(data.mission.classroom);mission=data.mission;await transition(renderMission);}}catch(err){$('#feedback').textContent=err.message;$('#feedback').dataset.error='true';}finally{btn.disabled=false;}};
-$('#monitor').onclick=()=>{$('#password-dialog').showModal();$('#monitor-password').focus();};$('#monitor-cancel').onclick=()=>{$('#password-dialog').close();$('#monitor-password').value='';};
-$('#monitor-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{const data=await api('/api/monitor/advance-photo',{password:$('#monitor-password').value});$('#monitor-password').value='';$('#password-dialog').close();mission=data.mission;await transition(renderMission);}catch(err){$('#monitor-error').textContent=err.message;}finally{btn.disabled=false;}};
+$('#answer-form').onsubmit=async e=>{e.preventDefault();const value=cleanAnswer($('#answer').value).trim();$('#answer').value=value;if(!value||switching)return;const btn=$('#answer-submit');btn.disabled=true;try{if(!await confirmAnswer(value))return;const data=await api('/api/answer',{answer:value,stage:mission.stage});$('#feedback').textContent=data.message;$('#feedback').dataset.error=String(!data.accepted);if(data.accepted){try{sessionStorage.removeItem('codigo-draft');}catch{}if(mission.stage===4)await confirmHandoff(data.mission.handoff);mission=data.mission;await transition(renderMission);}}catch(err){$('#feedback').textContent=err.message;$('#feedback').dataset.error='true';}finally{btn.disabled=false;}};
 document.querySelectorAll('[data-transition]').forEach(link=>link.addEventListener('click',e=>{if(e.ctrlKey||e.metaKey||e.shiftKey)return;e.preventDefault();transition(()=>{location.href=link.href;});}));
 window.addEventListener('pagehide',()=>{saveDraft();stopSignal();});
 (async()=>{try{const res=await fetch('/api/state');if(!res.ok)throw new Error('No se pudo recuperar la misión.');const data=await res.json();csrf=data.csrf;mission=data.mission;showHome();}catch(err){$('#team-error').textContent=err.message;} })();

@@ -30,3 +30,6 @@ html{background:#1a1612;font-family:Georgia,'Times New Roman',serif}body{backgro
 
 /* Context help stays within reach on phones and desktop. */
 .challenge-help{margin:0 auto 1rem;min-height:44px}.morse-reference{display:grid;grid-template-columns:1fr 1fr;gap:.5rem 1.5rem;text-align:left;font-family:monospace;font-size:1.25rem;letter-spacing:.12em}#notice-dialog{width:min(460px,calc(100vw - 32px));max-height:85dvh;overflow:auto}#notice-body p{line-height:1.5}#notice-dialog .primary{white-space:normal}
+
+/* Refranes con emojis y revisión de respuestas. */
+.emoji-puzzle{margin:16px auto 24px;padding:22px 16px;max-width:650px;border:1px solid #947138;border-radius:12px;background:#2b211699}.emoji-sequence{font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;font-size:clamp(30px,5vw,52px);line-height:1.7;word-spacing:.16em;overflow-wrap:anywhere;text-align:center}.emoji-puzzle .eyebrow{margin-bottom:12px}.review-answer{margin-top:12px;min-height:44px;white-space:normal}.review-copy{overflow-wrap:anywhere;line-height:1.6}#review-dialog{width:min(520px,calc(100vw - 32px));max-height:85dvh;overflow:auto}#review-dialog .dialog-actions{flex-wrap:wrap}

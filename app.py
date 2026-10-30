@@ -15,14 +15,23 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 LOCATIONS = ['Los sobres están bajo el escritorio central','Busquen los sobres detrás de la laptop','Revisen siempre bajo la mesa del proyector','Busquen todos los sobres bajo las sillas','Los sobres están junto a la puerta']
 CIRCUITS = ['0','3','2','5','4']
 CODES = ['251','372','583','916','635']
+PROVERBS = ['A caballo regalado no se le mira el diente','Cuando el río suena, piedras lleva','Al que madruga, Dios lo ayuda','Más vale pájaro en mano que ciento volando','Perro que ladra no muerde']
+EMOJIS = ['🐴 🎁 🚫 👀 🦷','🏞️ 🔊 🪨','🐓 🌅 🙏 🤝','🐦 ✋ ⚖️ 💯 🐦 ☁️','🐕 📢 🚫 🦷']
+PROVERB_VARIANTS = [
+    ['A caballo regalado no se le miran los dientes','A caballo regalado no se le mira los dientes','A caballo regalado no le mires el diente','A caballo regalado no le mires los dientes'],
+    ['Cuando el río suena es porque piedras lleva','Si el río suena piedras lleva'],
+    ['Al que madruga Dios le ayuda','A quien madruga Dios lo ayuda','A quien madruga Dios le ayuda','Al que madruga Dios ayuda','A quien madruga Dios ayuda'],
+    ['Más vale un pájaro en mano que ciento volando','Más vale pájaro en mano que cien volando','Más vale un pájaro en mano que cien volando'],
+    []]
+
 BANKS = [['ES','LA','CAFE','EQUIPO','INGENIERÍA','CODIGO','SECRETO','NEXO','TIEMPO'],['CAFE','ES','LA','EQUIPO','CODIGO','SECRETO','INGENIERÍA','NEXO','TIEMPO'],['CAFE','CODIGO','ES','EQUIPO','LA','SECRETO','NEXO','INGENIERÍA','TIEMPO'],['INGENIERÍA','CAFE','CODIGO','EQUIPO','SECRETO','ES','NEXO','TIEMPO','LA'],['CAFE','CODIGO','INGENIERÍA','EQUIPO','ES','LA','SECRETO','NEXO','TIEMPO']]
-TITLES = ['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Haz zoom','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final']
+TITLES = ['Cuenta bien, lee mejor','La contraseña imposible','El algoritmo corrompido','Compuertas en serie','Dilo con emojis','Encuentra las diferencias','La transmisión interceptada','Transmisión de doble cifrado','Señales intermitentes','Mensaje final']
 QUESTIONS = [
     'El primer reto puede parecer confuso, pero si lees bien tu ficha de normas lo entenderás.\n¿Cuál es tu enunciado correcto?',
     '¿Cuál es el dígito central de la contraseña de tres cifras?',
     '¿Qué número de un solo dígito se obtiene al ejecutar correctamente el programa?',
     '¿Cuál es el resultado decimal de la salida del circuito lógico?',
-    'La foto esconde más de lo que se observa a simple vista.\nIngresa el código especial',
+    '¿Qué refrán representan estos emojis? Escribe el refrán completo.',
     '¿Cuántas diferencias hay entre la Imagen A y la Imagen B?',
     '¿Cuál es la clave recuperada de la transmisión NEXO?',
     '¿Cuál es el último dígito de la suma obtenida después de descifrar el mensaje?',
@@ -33,7 +42,7 @@ CONFIRMATIONS = [
     '¿Confirmas que «{respuesta}» es el dígito central de la contraseña?',
     '¿Confirmas que el programa reconstruido produce «{respuesta}»?',
     '¿Confirmas que la salida del circuito es «{respuesta}»?',
-    '¿Confirmas que el código especial es «{respuesta}»?',
+    '¿Confirmas que «{respuesta}» es el refrán completo?',
     '¿Confirmas que encontraste «{respuesta}» diferencias?',
     '¿Confirmas que la clave recuperada es «{respuesta}»?',
     '¿Confirmas que el último dígito es «{respuesta}»?',
@@ -91,10 +100,7 @@ def init_db():
         add_columns(db, 'missions', {'club_name': "TEXT NOT NULL DEFAULT ''", 'timed_started': 'DOUBLE PRECISION'})
         if not had_clock:
             sql(db,'UPDATE missions SET timed_started=started WHERE stage>0')
-        rooms=['101','204','305','402','503']
-        secrets.SystemRandom().shuffle(rooms)
-        sql(db,'INSERT INTO app_metadata (key,value) VALUES (?,?) ON CONFLICT (key) DO NOTHING',('demo-classrooms',json.dumps(rooms)))
-        add_columns(db, 'submissions', {'team': 'INTEGER', 'expected_answers': "TEXT NOT NULL DEFAULT '[]'"})
+        add_columns(db, 'submissions', {'team': 'INTEGER', 'expected_answers': "TEXT NOT NULL DEFAULT '[]'", 'challenge_version': "TEXT NOT NULL DEFAULT 'photo'", 'manual_reviews': "TEXT NOT NULL DEFAULT '{}'"})
         legacy=ROOT/'legacy-results.json'
         if legacy.exists() and not sql(db,'SELECT value FROM app_metadata WHERE key=?',('legacy-imported',)).fetchone():
             for i,entry in enumerate(json.loads(legacy.read_text(encoding='utf-8')).get('submissions',[])):
@@ -109,17 +115,8 @@ def event_config():
 def photo(team):
     return event_config().get('photos',{}).get(CIRCUITS[team-1],{})
 
-def classroom(team):
-    configured=photo(team).get('destination')
-    if configured:
-        return configured
-    with connection() as db:
-        rooms=json.loads(sql(db,'SELECT value FROM app_metadata WHERE key=?',('demo-classrooms',)).fetchone()['value'])
-    return 'Aula '+rooms[team-1]+' (provisional)'
-
-
 def expected(team):
-    return [LOCATIONS[team-1],'4','2',CIRCUITS[team-1],photo(team).get('answer',''),'5','5','8',CODES[team-1],'LA INGENIERÍA ES EQUIPO']
+    return [LOCATIONS[team-1],'4','2',CIRCUITS[team-1],PROVERBS[team-1],'5','5','8',CODES[team-1],'LA INGENIERÍA ES EQUIPO']
 
 def password_valid(value):
     hashed=os.environ.get('ADMIN_PASSWORD_HASH')
@@ -174,10 +171,10 @@ def public(row):
         value.update(title=f'Reto {stage+1} — {TITLES[stage]}',question=QUESTIONS[stage],confirmation=CONFIRMATIONS[stage])
     if stage==1 and row['timed_started'] is None:
         value['first_destination']=LOCATIONS[team-1]
-    if stage in (5,6,7,8,9):
-        value['classroom']=classroom(team)
+    if 5<=stage<10:
+        value['handoff']=dict(instruction='Acércate a Gabriel Vallejo y dile esta frase:',phrase=PROVERBS[team-1])
     if stage==4:
-        value['photo']=dict(url=photo(team).get('url') or '/static/event/aula-provisional.svg',number=CIRCUITS[team-1],pending=not all(photo(team).get(k) for k in ('url','answer','destination')))
+        value['emoji_screen']=dict(number=CIRCUITS[team-1],emojis=EMOJIS[team-1])
     if stage==8:
         patterns=dict(zip('0123456789',['-----','.----','..---','...--','....-','.....','-....','--...','---..','----.']))
         value['signal']=[patterns[n] for n in CODES[team-1]]
@@ -243,6 +240,9 @@ def answer_matches(value, target, stage):
         return None
     if stage==4 and value.startswith('PENDIENTE · habilitado por monitor'):
         return None
+    if stage==4 and target in PROVERBS:
+        index=PROVERBS.index(target)
+        return normalize(value) in {normalize(v) for v in [target]+PROVERB_VARIANTS[index]}
     return normalize(value)==normalize(target) if stage in (0,9) else value.strip().casefold()==target.strip().casefold()
 
 @app.post('/api/answer')
@@ -288,12 +288,9 @@ def answer():
         sql(db,'UPDATE missions SET stage=?,answers=?,attempts=?,finished=? WHERE id=?',(stage+1,json.dumps(answers),json.dumps(attempts),int(finished),row['id']))
         if finished:
             score=sum(answer_matches(a,targets[i],i) is True for i,a in enumerate(answers))
-            sql(db,'INSERT INTO submissions (id,club,score,time_ms,answers,team,expected_answers) VALUES (?,?,?,?,?,?,?)',(row['id'],row['club_name'] or f'Equipo {team}',score,int((time.time()-row['timed_started'])*1000),json.dumps(answers),team,json.dumps(targets)))
+            sql(db,'INSERT INTO submissions (id,club,score,time_ms,answers,team,expected_answers,challenge_version) VALUES (?,?,?,?,?,?,?,?)',(row['id'],row['club_name'] or f'Equipo {team}',score,int((time.time()-row['timed_started'])*1000),json.dumps(answers),team,json.dumps(targets),'emoji'))
         updated=sql(db,'SELECT * FROM missions WHERE id=?',(row['id'],)).fetchone()
-    message=''
-    if stage==4:
-        message='Dirígete a '+classroom(team)+' y busca la carta del reto 6.'
-    return jsonify(accepted=True,message=message,mission=public(updated))
+    return jsonify(accepted=True,message='',mission=public(updated))
 
 @app.post('/api/admin/login')
 def login():
@@ -313,27 +310,66 @@ def login():
 
 LEGACY_ANSWERS=['I','8','F','P','0','X','3','Z','M','1']
 
+def result_entry(row):
+    entry=dict(row)
+    team=entry.get('team') or entry.pop('mission_team',None)
+    entry.pop('mission_team',None)
+    answers=json.loads(entry['answers'])
+    stored=json.loads(entry.get('expected_answers') or '[]')
+    legacy=entry['id'].startswith('legacy-')
+    targets=stored if len(stored)==10 else LEGACY_ANSWERS[:] if legacy else expected(team or 1)
+    if len(stored)!=10 and not legacy and entry.get('challenge_version')=='photo':
+        targets[4]=photo(team or 1).get('answer','')
+    reviews=json.loads(entry.get('manual_reviews') or '{}')
+    comparison=[]
+    for i in range(10):
+        automatic=answer_matches(answers[i],targets[i],i) if i<len(answers) else False
+        approved=bool(reviews.get(str(i+1),{}).get('approved'))
+        title=f'Reto {i+1} · versión anterior' if legacy else 'Haz zoom · versión anterior' if i==4 and entry.get('challenge_version')=='photo' else TITLES[i]
+        comparison.append(dict(stage=i+1,title=title,submitted=answers[i] if i<len(answers) else '',expected=targets[i],correct=True if approved else automatic,automatic_correct=automatic,manual_approved=approved))
+    entry.update(team=team,answers=answers,expected_answers=targets,legacy=legacy,manual_reviews=reviews,comparison=comparison)
+    return entry
+
+
 @app.get('/api/results')
 def results():
     if not is_admin():
         return jsonify(error='Ingresa la contraseña de organización.'),401
     with connection() as db:
-        rows=sql(db, 'SELECT s.*, m.team AS mission_team FROM submissions s LEFT JOIN missions m ON m.id=s.id ORDER BY s.score DESC,s.time_ms ASC,s.id ASC').fetchall()
-    entries=[]
-    for r in rows:
-        entry=dict(r)
-        team=entry.get('team') or entry.pop('mission_team', None)
-        entry.pop('mission_team', None)
-        answers=json.loads(entry['answers'])
-        stored=json.loads(entry.get('expected_answers') or '[]')
-        legacy=entry['id'].startswith('legacy-')
-        targets=stored if len(stored)==10 else LEGACY_ANSWERS if legacy else expected(team or 1)
-        entry.update(team=team,answers=answers,expected_answers=targets,legacy=legacy,
-            comparison=[dict(stage=i+1,title=f'Reto {i+1} · versión anterior' if legacy else TITLES[i],submitted=answers[i] if i<len(answers) else '',expected=targets[i],correct=answer_matches(answers[i],targets[i],i) if i<len(answers) else False) for i in range(10)])
-        entries.append(entry)
-    response=jsonify(leaderboard=entries)
+        rows=sql(db,'SELECT s.*, m.team AS mission_team FROM submissions s LEFT JOIN missions m ON m.id=s.id ORDER BY s.score DESC,s.time_ms ASC,s.id ASC').fetchall()
+    response=jsonify(leaderboard=[result_entry(row) for row in rows])
     response.headers['Cache-Control']='no-store'
     return response
+
+
+@app.post('/api/results/<submission_id>/review')
+def review_answer(submission_id):
+    if not is_admin():
+        return jsonify(error='Inicia sesión como organizador.'),401
+    data=request.get_json(silent=True) or {}
+    stage=data.get('stage');approved=data.get('approved')
+    if type(stage)!=int or not 1<=stage<=10 or type(approved)!=bool:
+        return jsonify(error='Selecciona un reto válido.'),400
+    with connection() as db:
+        if not DATABASE_URL:
+            sql(db,'BEGIN IMMEDIATE')
+        row=sql(db,'SELECT * FROM submissions WHERE id=?'+(' FOR UPDATE' if DATABASE_URL else ''),(submission_id,)).fetchone()
+        if not row:
+            return jsonify(error='El registro ya no existe.'),404
+        entry=result_entry(row);item=entry['comparison'][stage-1]
+        if item['automatic_correct'] is not False:
+            return jsonify(error='Solo se pueden validar respuestas marcadas como incorrectas.'),409
+        previous=item['manual_approved']
+        reviews=entry['manual_reviews']
+        if previous!=approved:
+            new_score=entry['score']+(1 if approved else -1)
+            if not 0<=new_score<=10:
+                return jsonify(error='El puntaje resultante debe estar entre 0 y 10.'),409
+            reviews[str(stage)]=dict(approved=approved,reviewed_at=time.time())
+            sql(db,'UPDATE submissions SET manual_reviews=?,score=? WHERE id=?',(json.dumps(reviews),new_score,submission_id))
+        updated=sql(db,'SELECT * FROM submissions WHERE id=?',(submission_id,)).fetchone()
+    return jsonify(success=True,result=result_entry(updated))
+
 
 @app.delete('/api/results/<submission_id>')
 def delete(submission_id):
@@ -352,25 +388,12 @@ def delete(submission_id):
 def readiness():
     if not is_admin():
         return jsonify(error='Acceso reservado.'),401
-    return jsonify(teams=[dict(team=n,photo=CIRCUITS[n-1],ready=all(photo(n).get(k) for k in ('url','answer','destination'))) for n in range(1,6)])
+    return jsonify(teams=[dict(team=n,screen=CIRCUITS[n-1],ready=True) for n in range(1,6)])
+
 
 @app.post('/api/monitor/advance-photo')
 def monitor_advance():
-    data=request.get_json(silent=True) or {}
-    if not isinstance(data.get('password'),str) or not password_valid(data['password']):
-        return jsonify(error='Contraseña incorrecta.'),403
-    with connection() as db:
-        if not DATABASE_URL:
-            sql(db,'BEGIN IMMEDIATE')
-        row=sql(db,'SELECT * FROM missions WHERE id=?'+(' FOR UPDATE' if DATABASE_URL else ''),(session.get('mission',''),)).fetchone()
-        if not row or row['stage']!=4 or row['finished']:
-            return jsonify(error='No hay una etapa de fotografía pendiente.'),409
-        if all(photo(row['team']).get(k) for k in ('url','answer','destination')):
-            return jsonify(error='Este equipo ya tiene una fotografía real configurada.'),409
-        answers=json.loads(row['answers'])+['PENDIENTE · habilitado por monitor']
-        sql(db,'UPDATE missions SET stage=5,answers=? WHERE id=?',(json.dumps(answers),row['id']))
-        row=sql(db,'SELECT * FROM missions WHERE id=?',(row['id'],)).fetchone()
-    return jsonify(correct=True,message='Etapa provisional habilitada por el organizador.',mission=public(row))
+    return jsonify(error='El reto de fotografía fue sustituido por Dilo con emojis.'),410
 
 init_db()
 if __name__=='__main__':
