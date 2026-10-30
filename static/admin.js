@@ -7,7 +7,7 @@ function statusName(value){return value===true?'Correcta':value===false?'Incorre
 function lock(){authorized=false;results=null;$('#results-body').replaceChildren();$('#results-panel').hidden=true;$('#login-panel').hidden=false;}
 function drawResults(){
  const expanded=new Set([...document.querySelectorAll('.comparison-details[open]')].map(d=>d.dataset.id));
- const tbody=$('#results-body');tbody.replaceChildren();
+ const tbody=$('#results-body');tbody.replaceChildren();$('#delete-all').disabled=!results.leaderboard.length;
  results.leaderboard.forEach((entry,i)=>{
   const tr=node('tr',undefined,'result-row');tr.dataset.id=entry.id;
   const rank=node('td',(i===0?'♛ ':i===1?'♜ ':i===2?'♟ ':'')+'#'+(i+1),'rank rank-cell '+(['rank-one','rank-two','rank-three'][i]||''));
@@ -18,7 +18,7 @@ function drawResults(){
   details.append(node('summary','Comparar respuestas enviadas y reales'));
   const list=node('div',undefined,'comparison-list');entry.comparison.forEach(item=>{const card=node('article',undefined,'comparison-item');card.dataset.status=item.correct===true?'correct':item.correct===false?'incorrect':'pending';const heading=node('h4',String(item.stage).padStart(2,'0')+' · '+item.title);heading.append(node('span',item.manual_approved?'Validada por organización':statusName(item.correct),'comparison-status'));const dl=node('dl');for(const [label,value] of [['Enviada',item.submitted||'Sin respuesta'],['Respuesta real',item.expected||'Sin clave definida en esta versión']]){const pair=node('div');pair.append(node('dt',label),node('dd',value));dl.append(pair);}card.append(heading,dl);if(item.correct===false||item.manual_approved){const review=node('button',item.manual_approved?'Deshacer validación':'Validar como correcta','secondary review-answer');review.type='button';review.setAttribute('aria-label',(item.manual_approved?'Deshacer validación':'Validar como correcta')+' · reto '+item.stage+' · '+entry.club);review.onclick=()=>openReview(entry,item);card.append(review);}list.append(card);});details.append(list);seq.append(badges,details);
   const score=node('td',entry.score+'/10','score-cell');score.dataset.label='Aciertos';const time=node('td',formatTime(entry.time_ms),'time-cell');time.dataset.label='Tiempo total';
-  const actions=node('td',undefined,'actions-cell');const btn=node('button','Borrar','secondary');btn.type='button';btn.setAttribute('aria-label','Borrar registro de '+entry.club);btn.onclick=()=>{deleting=entry.id;$('#delete-description').textContent='Se eliminará el registro de '+entry.club+'. Esta acción no se puede deshacer.';$('#delete-password').value='';$('#delete-error').textContent='';$('#delete-dialog').showModal();$('#delete-password').focus();};actions.append(btn);tr.append(rank,club,seq,score,time,actions);tbody.append(tr);
+  const actions=node('td',undefined,'actions-cell');const btn=node('button','Borrar','secondary');btn.type='button';btn.setAttribute('aria-label','Borrar registro de '+entry.club);btn.onclick=()=>openDelete(entry);actions.append(btn);tr.append(rank,club,seq,score,time,actions);tbody.append(tr);
  });
  if(!results.leaderboard.length){const tr=node('tr'),td=node('td','Ningún gremio ha terminado todavía.','empty-state');td.colSpan=6;tr.append(td);tbody.append(tr);}
 }
@@ -36,8 +36,17 @@ $('#review-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;bt
 $('#login-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{await api('/api/admin/login',{password:$('#password').value},'POST');$('#password').value='';authorized=true;await transition(refresh);}catch(err){$('#login-error').textContent=err.message;}finally{btn.disabled=false;}};
 $('#refresh').onclick=refresh;
 $('#logout').onclick=async()=>{try{await api('/api/admin/logout',{},'POST');lock();}catch(err){$('#results-error').textContent=err.message;}};
+function openDelete(entry=null){
+ deleting=entry?entry.id:null;
+ $('#delete-title').textContent=entry?'Borrar registro':'Borrar todo el leaderboard';
+ $('#delete-description').textContent=entry?'Se eliminará el registro de '+entry.club+'. Esta acción no se puede deshacer.':'Se eliminarán todos los registros del leaderboard. Esta acción no se puede deshacer. Vuelve a introducir la contraseña para confirmar.';
+ $('#delete-confirm').textContent=entry?'Borrar registro':'Borrar todos los registros';
+ $('#delete-password').value='';$('#delete-error').textContent='';$('#delete-dialog').showModal();$('#delete-password').focus();
+}
+$('#delete-all').onclick=()=>openDelete();
+$('#delete-dialog').addEventListener('close',()=>{$('#delete-password').value='';});
 $('#delete-cancel').onclick=()=>{$('#delete-dialog').close();$('#delete-password').value='';};
-$('#delete-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{await api('/api/results/'+encodeURIComponent(deleting),{password:$('#delete-password').value},'DELETE');$('#delete-password').value='';$('#delete-dialog').close();await refresh();}catch(err){$('#delete-error').textContent=err.message;}finally{btn.disabled=false;}};
+$('#delete-form').onsubmit=async e=>{e.preventDefault();const btn=e.submitter;btn.disabled=true;try{await api(deleting===null?'/api/results':'/api/results/'+encodeURIComponent(deleting),{password:$('#delete-password').value},'DELETE');$('#delete-password').value='';$('#delete-dialog').close();await refresh();}catch(err){$('#delete-error').textContent=err.message;}finally{btn.disabled=false;}};
 $('#export').onclick=()=>{if(!results)return;const url=URL.createObjectURL(new Blob([JSON.stringify({exported_at:new Date().toISOString(),leaderboard:results.leaderboard},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='codigo-secreto-resultados-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 let transitioning=false;
 async function transition(work){if(transitioning)return;transitioning=true;const overlay=$('#transition');overlay.classList.add('active');const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;await new Promise(r=>setTimeout(r,reduced?0:450));try{await work();await new Promise(r=>setTimeout(r,reduced?100:1100));}finally{overlay.classList.remove('active');transitioning=false;}}

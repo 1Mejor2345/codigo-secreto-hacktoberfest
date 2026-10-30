@@ -113,6 +113,7 @@ La ruta es **`/leaderboard`**; `/admin` redirige allí. También se accede media
 - La versión móvil presenta los mismos registros en tarjetas.
 - Los resultados se actualizan automáticamente cada tres segundos, salvo mientras se consulta una comparación o un diálogo.
 - Borrar un registro exige volver a escribir la contraseña.
+- «Borrar todo el leaderboard» abre una advertencia y exige otra vez la contraseña de organización. Elimina todos los resultados, incluidas sus revisiones manuales, pero conserva las misiones en curso y la configuración. No elimina la base de datos ni reinicia el avance de los equipos. Los registros históricos eliminados no se reimportan al reiniciar.
 - «Exportar resultados» descarga una copia JSON y «Cerrar acceso» cierra la sesión administrativa.
 
 La base conserva misiones y resultados por separado. Borrar un resultado del leaderboard no elimina automáticamente la misión asociada.

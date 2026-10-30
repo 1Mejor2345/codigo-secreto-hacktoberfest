@@ -397,6 +397,19 @@ def review_answer(submission_id):
     return jsonify(success=True,result=result_entry(updated))
 
 
+@app.delete('/api/results')
+def delete_all_results():
+    if not is_admin():
+        return jsonify(error='Inicia sesión como organizador.'),401
+    data=request.get_json(silent=True) or {}
+    if not isinstance(data.get('password'),str) or not password_valid(data['password']):
+        return jsonify(error='Vuelve a introducir la contraseña para borrar todo el leaderboard.'),403
+    with connection() as db:
+        deleted=sql(db,'DELETE FROM submissions').rowcount
+        sql(db,'INSERT INTO app_metadata (key,value) VALUES (?,?) ON CONFLICT (key) DO NOTHING',('legacy-imported','yes'))
+    return jsonify(success=True,deleted=deleted)
+
+
 @app.delete('/api/results/<submission_id>')
 def delete(submission_id):
     if not is_admin():
